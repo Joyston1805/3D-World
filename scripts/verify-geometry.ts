@@ -3,6 +3,13 @@ import * as THREE from 'three'
 import { STLExporter } from 'three-stdlib'
 import { shapeCatalog } from '../src/shapes/catalog'
 import { defaultValuesFor } from '../src/engine/types'
+import { ensureManifoldLoading } from '../src/engine/manifoldSingleton'
+
+// Perforated shapes (e.g. Honeycomb Lamp Shade) need the manifold-3d WASM module for
+// their CSG step; without this, applyPerforation() silently skips perforation (the
+// same graceful-degradation the browser uses while it loads) and this script would
+// never actually exercise that code path.
+await ensureManifoldLoading()
 
 function posKey(x: number, y: number, z: number): string {
   // Position-based (not index-based) so this also validates non-indexed

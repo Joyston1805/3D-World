@@ -2,6 +2,7 @@ import { Bounds, Grid, OrbitControls } from '@react-three/drei'
 import { Canvas } from '@react-three/fiber'
 import { useMemo, useRef } from 'react'
 import * as THREE from 'three'
+import { useManifoldReady } from '../engine/manifoldSingleton'
 import { getShape } from '../shapes/catalog'
 import { useDesignStore } from '../store/useDesignStore'
 
@@ -18,13 +19,17 @@ function Model({
 }) {
   const selectedShapeId = useDesignStore((s) => s.selectedShapeId)
   const values = useDesignStore((s) => s.valuesByShape[s.selectedShapeId])
+  const manifoldReady = useManifoldReady()
 
   const geometry = useMemo(() => {
     if (generatedGeometry) return generatedGeometry
     const shape = getShape(selectedShapeId)
     if (!shape) return new THREE.BufferGeometry()
     return shape.build(values)
-  }, [selectedShapeId, values, generatedGeometry])
+    // manifoldReady isn't read directly, but perforated shapes need one recompute
+    // once the CSG WASM module finishes loading (see manifoldSingleton.ts).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedShapeId, values, generatedGeometry, manifoldReady])
 
   const color = generatedGeometry ? '#d6d3d1' : typeof values.color === 'string' ? values.color : '#cccccc'
 

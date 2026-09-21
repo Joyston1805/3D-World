@@ -1,4 +1,6 @@
 import * as THREE from 'three'
+import type { PerforationParams } from './perforate'
+import { applyPerforation } from './perforate'
 
 /**
  * Generates a watertight, manifold, 3D-printable shell by revolving a
@@ -45,6 +47,8 @@ export interface RevolveShellParams {
   heightSegments: number
   bottomMode: EndMode
   topMode: EndMode
+  /** Real cut-through holes (honeycomb/circle-punch), via boolean CSG. */
+  perforation: PerforationParams
 }
 
 /**
@@ -247,12 +251,26 @@ export function buildRevolveShell(p: RevolveShellParams): THREE.BufferGeometry {
     }
   }
 
-  const geometry = new THREE.BufferGeometry()
+  let geometry = new THREE.BufferGeometry()
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
   geometry.setIndex(indices)
   geometry.computeVertexNormals()
   // Revolve is already centered on the Y axis; leave Y alone so the
   // object's bottom sits at y=0, matching a print-bed origin.
   geometry.computeBoundingBox()
+
+  if (p.perforation.style !== 'none') {
+    const avgRadius = (outerRadius(0, 0) + outerRadius(0.5, 0) + outerRadius(1, 0)) / 3
+    const sampleOuterSurface = (t: number, angle: number) => {
+      const y = t * height
+      const twist = twistRad * t
+      const r = outerRadius(t, angle)
+      const [x, z] = rotateXZ(r * Math.cos(angle), r * Math.sin(angle), twist)
+      const [nx, nz] = rotateXZ(Math.cos(angle), Math.sin(angle), twist)
+      return { x, y, z, normal: new THREE.Vector3(nx, 0, nz) }
+    }
+    geometry = applyPerforation(geometry, height, wall, avgRadius, sampleOuterSurface, p.perforation)
+  }
+
   return geometry
 }

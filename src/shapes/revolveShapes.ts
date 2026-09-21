@@ -42,11 +42,24 @@ const textureStyleParam = (def: string): ParamDef => ({
   ],
 })
 
+const perforationStyleParam = (def: string): ParamDef => ({
+  type: 'select',
+  key: 'perforationStyle',
+  label: 'Perforation (cut-through holes)',
+  default: def,
+  options: [
+    { value: 'none', label: 'None (solid wall)' },
+    { value: 'hexagon', label: 'Honeycomb (hexagons)' },
+    { value: 'circle', label: 'Circle punch' },
+  ],
+})
+
 const textureActive = (v: ParamValues) => v.textureStyle !== 'none'
 const isWaves = (v: ParamValues) => v.textureStyle === 'waves'
 const isSketch = (v: ParamValues) => v.curveStyle === 'sketch'
 const isCurved = (v: ParamValues) => v.curveStyle !== 'straight' && !isSketch(v)
 const isSuperformula = (v: ParamValues) => v.crossSectionStyle === 'superformula'
+const isPerforated = (v: ParamValues) => v.perforationStyle !== 'none'
 
 const HEIGHT_SEGMENTS = 48
 
@@ -68,6 +81,9 @@ interface StandardParamConfig {
   textureAmount: [number, number, number, number]
   textureFrequency: [number, number, number, number]
   textureSpiral: [number, number, number, number]
+  perforationStyleDefault?: string
+  perforationCellSize?: [number, number, number, number]
+  perforationHoleRatio?: [number, number, number, number]
   wallThickness: [number, number, number, number]
   sides: [number, number, number, number]
   color: string
@@ -91,6 +107,9 @@ function standardParams(cfg: StandardParamConfig): ParamDef[] {
     num('textureAmount', 'Texture depth', ...cfg.textureAmount, 'mm', textureActive),
     num('textureFrequency', 'Texture count', ...cfg.textureFrequency, '', textureActive),
     num('textureSpiral', 'Texture spiral', ...cfg.textureSpiral, '', isWaves),
+    perforationStyleParam(cfg.perforationStyleDefault ?? 'none'),
+    num('perforationCellSize', 'Hole spacing', ...(cfg.perforationCellSize ?? [8, 40, 1, 16]), 'mm', isPerforated),
+    num('perforationHoleRatio', 'Hole size', ...(cfg.perforationHoleRatio ?? [0.3, 0.95, 0.05, 0.75]), '', isPerforated),
     num('wallThickness', 'Wall thickness', ...cfg.wallThickness),
     num('sides', 'Smoothness', ...cfg.sides, ''),
     colorParam(cfg.color),
@@ -118,6 +137,11 @@ function buildFromValues(values: ParamValues, bottomMode: 'open' | 'solid', topM
     textureAmount: Number(values.textureAmount),
     textureFrequency: Number(values.textureFrequency),
     textureSpiral: Number(values.textureSpiral),
+    perforation: {
+      style: (values.perforationStyle as 'none' | 'hexagon' | 'circle') ?? 'none',
+      cellSize: Number(values.perforationCellSize ?? 16),
+      holeRatio: Number(values.perforationHoleRatio ?? 0.75),
+    },
     wallThickness: Number(values.wallThickness),
     sides: Number(values.sides),
     heightSegments: HEIGHT_SEGMENTS,
@@ -378,9 +402,38 @@ export const lampBase: ShapeDefinition = {
   build: (values) => buildFromValues(values, 'open', 'open'),
 }
 
+export const honeycombLampShade: ShapeDefinition = {
+  id: 'honeycomb-lamp-shade',
+  name: 'Honeycomb Lamp Shade',
+  description:
+    'A lamp shade with real cut-through hexagonal holes (not just a bump texture) — light shines straight through the honeycomb pattern. Built with boolean CSG, so it costs a moment to regenerate after you change a slider.',
+  params: standardParams({
+    height: [100, 350, 5, 220],
+    bottomLabel: 'Bottom diameter',
+    bottomDiameter: [80, 400, 5, 200],
+    topLabel: 'Top diameter',
+    topDiameter: [60, 350, 5, 150],
+    curveStyleDefault: 'straight',
+    curveAmount: [0, 60, 1, 0],
+    twist: [-180, 180, 5, 0],
+    textureStyleDefault: 'none',
+    textureAmount: [0, 10, 0.5, 0],
+    textureFrequency: [1, 40, 1, 10],
+    textureSpiral: [0, 6, 0.5, 1],
+    perforationStyleDefault: 'hexagon',
+    perforationCellSize: [10, 40, 1, 18],
+    perforationHoleRatio: [0.3, 0.95, 0.05, 0.8],
+    wallThickness: [2, 6, 0.2, 3],
+    sides: [24, 160, 1, 96],
+    color: '#e8dcc4',
+  }),
+  build: (values) => buildFromValues(values, 'open', 'open'),
+}
+
 export const revolveShapes: ShapeDefinition[] = [
   lampShade,
   lampBase,
+  honeycombLampShade,
   vase,
   planter,
   tumbler,

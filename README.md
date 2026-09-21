@@ -6,15 +6,15 @@ print-ready STL for Bambu Studio (or any slicer).
 
 ## What's here (Phase 1 — parametric customizer)
 
-Four geometry families, thirteen catalog entries, all built on techniques borrowed from
+Four geometry families, fifteen catalog entries, all built on techniques borrowed from
 real open-source/generative-design tooling (see **Where these techniques come from**
 below) rather than invented from scratch:
 
 - **Revolve-shell family** ([src/engine/revolveShell.ts](src/engine/revolveShell.ts) +
   [src/shapes/revolveShapes.ts](src/shapes/revolveShapes.ts)): Lamp Shade, **Lamp Base**,
-  Vase, Planter/Pot, Tumbler/Cup, Twisted Spire, Wave Bowl, Organic Pod, Flower Vase, Gear
-  Planter. A watertight, manifold, double-walled shell revolved around the Y axis, with
-  five composable parametric layers:
+  **Honeycomb Lamp Shade**, Vase, Planter/Pot, Tumbler/Cup, Twisted Spire, Wave Bowl,
+  Organic Pod, Flower Vase, Gear Planter. A watertight, manifold, double-walled shell
+  revolved around the Y axis, with six composable parametric layers:
   - **silhouette** — height profile: straight/bulge/cinch curve, *or* a hand-drawn/uploaded
     custom profile (see **Sketch-to-profile** below),
   - **cross-section** — a circle, or a [Gielis superformula](https://en.wikipedia.org/wiki/Superformula)
@@ -22,7 +22,9 @@ below) rather than invented from scratch:
     sliders, huge range of outlines),
   - **twist** — spirals the whole form top-to-bottom (classic "twisted vase mode"),
   - **surface texture** — ribs/flutes, waves, or cheap deterministic organic/coral noise,
-    all of which spiral automatically if twist is also applied.
+    all of which spiral automatically if twist is also applied,
+  - **perforation** — real cut-through holes (honeycomb or circle-punch), via boolean CSG
+    ([src/engine/perforate.ts](src/engine/perforate.ts)) — see **Perforation** below.
   - Lamp Base is sized for real hardware: open top for a standard socket/harp riser
     (~28-32mm), open bottom to route the cord and add a weight for stability — same
     hollow-shell shape as Vase, just different proportions/openings, so it needed zero
@@ -77,6 +79,34 @@ This intentionally does *not* attempt general image-to-3D (an uploaded photo of,
 whole room or an arbitrary 3D object won't produce anything sensible — it only reads a
 silhouette). That's a materially different, much harder problem; see Phase 2 below.
 
+### Perforation (real cut-through holes — honeycomb lamps, etc.)
+
+The **surface texture** layer (ribs/waves/organic) only *displaces* the surface — it
+can't make an actual hole, so it can't produce a real honeycomb-perforated lamp shade
+where light shines through open hexagons. **Perforation** is a separate layer that
+actually removes material via boolean CSG: pick **Perforation → Honeycomb** or **Circle
+punch** on any revolve shape (or start from the **Honeycomb Lamp Shade** preset), tune
+hole spacing/size, and it cuts a real grid of holes through the wall — tiled correctly
+across twisted, tapered, or superformula-cross-sectioned surfaces alike, since it drills
+each hole using the shape's own exact outer-surface position and normal at that point.
+
+**Why manifold-3d and not three-bvh-csg**: the first implementation used
+[three-bvh-csg](https://github.com/gkjohnson/three-bvh-csg), a popular three.js CSG
+library — but it consistently produced non-manifold output (dozens of open-boundary
+edges) for exactly this shape of operation: drilling radially through a curved
+cylindrical wall. Isolated testing (denser tessellation, vertex welding, clearing
+material groups) ruled out a setup mistake; it turned out to be a known, still-open
+upstream limitation (their own README points to triangle-splitting issues and
+recommends [Manifold](https://github.com/elalish/manifold) for robustness). Swapping in
+[manifold-3d](https://github.com/elalish/manifold) (the WASM build of that library)
+resolved it completely — verified with this app's own manifold-check tooling down to
+zero non-manifold edges, including a 378-hole honeycomb lamp shade.
+
+Since manifold-3d loads as WASM (async) but every shape's `build()` is synchronous
+everywhere else in this app, perforation degrades gracefully: it's skipped (shape
+renders solid) until the module finishes loading — usually under a second — after which
+the next recompute picks it up automatically ([src/engine/manifoldSingleton.ts](src/engine/manifoldSingleton.ts)).
+
 ### Photo-to-relief (lithophane) + color band guide for the Bambu A1
 
 The **Photo Panel** shape ([src/lib/imageToHeightmap.ts](src/lib/imageToHeightmap.ts) +
@@ -113,9 +143,13 @@ This one physical shape serves two different print techniques:
   Gridfinity, dotSCAD) — validated the overall "customizer" pattern this app already
   used (param-driven shapes with live re-generation), and is the natural place to look
   next for threads/fasteners/modular-storage shape families.
-- Voronoi lamps (a very common open-source/Thingiverse/Printables design) — inspired the
-  idea, but a true perforated-cell shell needs real 3D Voronoi tessellation + boolean
-  subtraction (see Roadmap); not implemented yet.
+- Voronoi/honeycomb lamps (very common open-source/Thingiverse/Printables designs) —
+  directly implemented as the Perforation layer (honeycomb/circle-punch via real
+  boolean CSG); a true irregular Voronoi-cell pattern specifically (vs. a regular hex
+  or circle grid) is still a Roadmap item.
+- [Manifold](https://github.com/elalish/manifold) — a topologically-robust CSG/geometry
+  kernel (WASM) — directly implemented as the Perforation layer's boolean engine; see
+  **Perforation** above for why it replaced an initial three-bvh-csg attempt.
 - Noise-displaced icosphere rock/gem generators (e.g. the Three.js "SeedRock" approach) —
   directly implemented as the Blob family.
 - Procedural L-system / recursive branch generators (a standard technique for
@@ -188,9 +222,9 @@ The UI layer (`src/components`, `src/App.tsx`) would be rebuilt natively; the st
 store (`zustand`) and STL export logic would mostly carry over as-is.
 
 **Other things worth adding before this feels "done":**
-- A true perforated Voronoi-cell shell (real cut-through holes, not just a bump
-  texture) — needs a CSG boolean step, e.g. via `three-bvh-csg`, to subtract cells from
-  the revolve shell.
+- A true irregular Voronoi-cell perforation pattern (the current Perforation layer
+  does regular hex/circle grids; real Voronoi tessellation is a further step, though
+  the CSG plumbing to cut it is now in place and proven).
 - Real HueForge-style multi-layer color blending for the Photo Panel (needs calibrated
   per-filament transmission-distance data — see **Photo-to-relief** above for why the
   simpler band-guide approach was chosen instead for now).
@@ -200,4 +234,5 @@ store (`zustand`) and STL export logic would mostly carry over as-is.
   text/monogram embossing, multi-part assemblies, gridfinity-style modular bins).
 - Save/load a design (params) as a small JSON file, and a gallery of past designs.
 - 3MF export with color.
-- Drainage-hole / mounting-hole cutouts for the planter (also needs real CSG).
+- Drainage-hole / mounting-hole cutouts for the planter — now straightforward since
+  the Perforation layer's CSG plumbing already exists.
