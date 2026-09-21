@@ -6,7 +6,8 @@ export function ShapeGallery() {
   const selectShape = useDesignStore((s) => s.selectShape)
 
   return (
-    <div className="flex gap-2 overflow-x-auto p-3">
+    <div className="flex items-center gap-3 overflow-x-auto border-b border-slate-800 p-3">
+      <span className="shrink-0 text-xs text-slate-500">Base shape:</span>
       {shapeCatalog.map((shape) => {
         const active = shape.id === selectedShapeId
         return (

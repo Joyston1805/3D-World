@@ -1,30 +1,47 @@
 import { buildBlob } from '../engine/blobGeometry'
-import type { ParamDef, ParamValues, ShapeDefinition } from '../engine/types'
+import type { ComponentGroup, ParamDef, ParamValues, ShapeDefinition } from '../engine/types'
+import { defaultValuesFor } from '../engine/types'
 import { colorParam, num } from './paramHelpers'
 
-function blobParams(cfg: {
-  radius: [number, number, number, number]
-  detail: [number, number, number, number]
-  noiseAmount: [number, number, number, number]
-  noiseScale: [number, number, number, number]
-  seed: [number, number, number, number]
-  squash: [number, number, number, number]
-  facetedDefault: boolean
-  color: string
-}): ParamDef[] {
-  return [
-    num('radius', 'Radius', ...cfg.radius),
-    num('detail', 'Detail (facet density)', ...cfg.detail, ''),
-    num('noiseAmount', 'Roughness depth', ...cfg.noiseAmount),
-    num('noiseScale', 'Roughness scale', ...cfg.noiseScale, ''),
-    num('squash', 'Flatten top/bottom', ...cfg.squash, ''),
-    num('seed', 'Seed (reroll for a new one)', ...cfg.seed, ''),
-    { type: 'boolean', key: 'faceted', label: 'Faceted (flat shading)', default: cfg.facetedDefault },
-    colorParam(cfg.color),
-  ]
-}
+const coreParams: ParamDef[] = [
+  num('radius', 'Radius', 10, 150, 2, 50),
+  num('detail', 'Detail (facet density)', 0, 4, 1, 2, ''),
+  num('seed', 'Seed (reroll for a new one)', 0, 999, 1, 7, ''),
+  { type: 'boolean', key: 'faceted', label: 'Faceted (flat shading)', default: false },
+  colorParam('#b5b5b5'),
+]
 
-function buildFromValues(values: ParamValues) {
+const roughnessParams: ParamDef[] = [
+  num('noiseAmount', 'Roughness depth', 0.5, 35, 0.5, 0),
+  num('noiseScale', 'Roughness scale', 0.5, 6, 0.1, 1.6, ''),
+]
+
+const flattenParams: ParamDef[] = [num('squash', 'Flatten amount', 0.05, 0.6, 0.05, 0, '')]
+
+export const componentGroups: ComponentGroup[] = [
+  {
+    id: 'roughness',
+    label: 'Roughness',
+    description: 'Noise-displaces the surface — from gem facets to craggy rock, depending on Detail.',
+    paramKeys: roughnessParams.map((d) => d.key),
+    isActive: (v) => Number(v.noiseAmount) > 0,
+    activate: (v) => ({ ...v, noiseAmount: 10 }),
+    deactivate: (v) => ({ ...v, noiseAmount: 0 }),
+  },
+  {
+    id: 'flatten',
+    label: 'Flatten',
+    description: 'Squashes the top and bottom — an egg/lens shape instead of a sphere.',
+    paramKeys: flattenParams.map((d) => d.key),
+    isActive: (v) => Number(v.squash) > 0,
+    activate: (v) => ({ ...v, squash: 0.25 }),
+    deactivate: (v) => ({ ...v, squash: 0 }),
+  },
+]
+
+const allParams: ParamDef[] = [...coreParams, ...roughnessParams, ...flattenParams]
+
+function build(values: ParamValues) {
   return buildBlob({
     radius: Number(values.radius),
     detail: Number(values.detail),
@@ -36,39 +53,16 @@ function buildFromValues(values: ParamValues) {
   })
 }
 
-export const crystalGem: ShapeDefinition = {
-  id: 'crystal-gem',
-  name: 'Crystal Gem',
+export const blobDefaults: ParamValues = defaultValuesFor(allParams)
+
+export const blob: ShapeDefinition = {
+  id: 'blob',
+  name: 'Blob',
   description:
-    'A faceted, noise-displaced icosahedron — low "detail" keeps large gem-like facets. Solid (not hollow).',
-  params: blobParams({
-    radius: [10, 100, 2, 35],
-    detail: [0, 3, 1, 1],
-    noiseAmount: [0, 20, 0.5, 5],
-    noiseScale: [0.5, 6, 0.1, 1.8],
-    seed: [0, 999, 1, 7],
-    squash: [0, 0.6, 0.05, 0.25],
-    facetedDefault: true,
-    color: '#8ec9f0',
-  }),
-  build: (values) => buildFromValues(values),
+    'A noise-displaced sphere — the mathematical base behind gems, rocks, and asteroids. Starts as a plain sphere; add components below to shape it further.',
+  params: allParams,
+  componentGroups,
+  build,
 }
 
-export const boulder: ShapeDefinition = {
-  id: 'boulder',
-  name: 'Boulder',
-  description: 'A noise-displaced rock/asteroid form. Higher "detail" and roughness give a craggier look. Solid.',
-  params: blobParams({
-    radius: [20, 150, 2, 55],
-    detail: [1, 4, 1, 3],
-    noiseAmount: [0, 35, 0.5, 14],
-    noiseScale: [0.5, 6, 0.1, 1.4],
-    seed: [0, 999, 1, 42],
-    squash: [0, 0.6, 0.05, 0.1],
-    facetedDefault: false,
-    color: '#8a8578',
-  }),
-  build: (values) => buildFromValues(values),
-}
-
-export const blobShapes: ShapeDefinition[] = [crystalGem, boulder]
+export const blobShapes: ShapeDefinition[] = [blob]

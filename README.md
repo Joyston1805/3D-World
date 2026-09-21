@@ -1,54 +1,65 @@
 # Formwork
 
 A parametric 3D model customizer, in the spirit of MakerWorld/Thingiverse "Customizer" apps.
-Pick a base shape, drag sliders to reshape it in a live 3D preview, and export a
-print-ready STL for Bambu Studio (or any slicer).
+Start from a base mathematical shape, add and remove components to build it up, tune
+whatever you've added in a live 3D preview, and export a print-ready STL for Bambu
+Studio (or any slicer).
 
 ## What's here (Phase 1 — parametric customizer)
 
-Four geometry families, fifteen catalog entries, all built on techniques borrowed from
-real open-source/generative-design tooling (see **Where these techniques come from**
-below) rather than invented from scratch:
+### Base shape → components → customize
 
-- **Revolve-shell family** ([src/engine/revolveShell.ts](src/engine/revolveShell.ts) +
-  [src/shapes/revolveShapes.ts](src/shapes/revolveShapes.ts)): Lamp Shade, **Lamp Base**,
-  **Honeycomb Lamp Shade**, Vase, Planter/Pot, Tumbler/Cup, Twisted Spire, Wave Bowl,
-  Organic Pod, Flower Vase, Gear Planter. A watertight, manifold, double-walled shell
-  revolved around the Y axis, with six composable parametric layers:
-  - **silhouette** — height profile: straight/bulge/cinch curve, *or* a hand-drawn/uploaded
-    custom profile (see **Sketch-to-profile** below),
-  - **cross-section** — a circle, or a [Gielis superformula](https://en.wikipedia.org/wiki/Superformula)
-    curve (flowers, stars, gears, rounded polygons — one formula, `petals`/`n1`/`n2`/`n3`
-    sliders, huge range of outlines),
-  - **twist** — spirals the whole form top-to-bottom (classic "twisted vase mode"),
-  - **surface texture** — ribs/flutes, waves, or cheap deterministic organic/coral noise,
-    all of which spiral automatically if twist is also applied,
-  - **perforation** — real cut-through holes (honeycomb or circle-punch), via boolean CSG
-    ([src/engine/perforate.ts](src/engine/perforate.ts)) — see **Perforation** below.
-  - Lamp Base is sized for real hardware: open top for a standard socket/harp riser
-    (~28-32mm), open bottom to route the cord and add a weight for stability — same
-    hollow-shell shape as Vase, just different proportions/openings, so it needed zero
-    new geometry code.
-- **Blob family** ([src/engine/blobGeometry.ts](src/engine/blobGeometry.ts) +
-  [src/shapes/blobShapes.ts](src/shapes/blobShapes.ts)): Crystal Gem, Boulder. A
-  noise-displaced icosahedron (the technique behind open-source procedural rock/gem
-  generators) — subdivision level controls facet density, a seeded 3D noise field
-  displaces each vertex along its own radial direction, and a faceted/smooth toggle
-  switches between flat-shaded gem facets and a rounded boulder look. Solid, not hollow.
-- **Branch family** ([src/engine/branchGeometry.ts](src/engine/branchGeometry.ts) +
-  [src/shapes/branchShapes.ts](src/shapes/branchShapes.ts)): Coral Branch. A recursive,
-  seeded branching structure (coral/root/tree), in the spirit of classic procedural
-  L-system generators — tapered cylinder segments joined by spheres; change the seed for
-  an entirely different specimen. Each segment is individually closed/watertight, so the
-  union prints correctly without a CSG boolean step.
-- **Lithophane family** ([src/engine/lithophaneGeometry.ts](src/engine/lithophaneGeometry.ts) +
-  [src/shapes/lithophaneShapes.ts](src/shapes/lithophaneShapes.ts)): Photo Panel. Upload a
-  photo and it becomes a flat relief panel — thick where the image is dark, thin where
-  it's light, the classic backlit-lithophane technique. See **Photo-to-relief** below.
+Rather than picking one of a fixed list of finished, differently-named shapes, you pick
+one of four **base mathematical forms** ([src/components/ShapeGallery.tsx](src/components/ShapeGallery.tsx)),
+each of which starts in its plainest possible state (a bare cylinder, a plain sphere)
+and exposes a set of **components** you add and remove yourself
+([src/components/ParamPanel.tsx](src/components/ParamPanel.tsx), `ComponentGroup` in
+[src/engine/types.ts](src/engine/types.ts)) — each one an "+ Add X" toggle that, once
+active, reveals its own sliders and can be individually removed again, so the shape is
+genuinely built up rather than chosen whole:
 
-Every shape is regression-checked for zero non-manifold edges via `npm run
-verify:geometry`, including closed/sealed sculptural forms (Organic Pod) and merged
-multi-mesh structures (Coral Branch).
+- **Revolve** ([src/engine/revolveShell.ts](src/engine/revolveShell.ts) +
+  [src/shapes/revolveShapes.ts](src/shapes/revolveShapes.ts)) — a 2D profile spun around
+  an axis: the mathematical base behind vases, lamp shades/bases, bowls, pots, and cups.
+  Components: **Profile Curve** (bulge/cinch, or a hand-drawn/uploaded custom silhouette
+  — see **Sketch-to-profile** below), **Cross-Section Shape** (swap the circle for a
+  [Gielis superformula](https://en.wikipedia.org/wiki/Superformula) curve — flowers,
+  stars, gears), **Twist** (spirals the whole form top-to-bottom), **Surface Texture**
+  (ribs/flutes, waves, or organic noise displacing the surface), **Perforation** (real
+  cut-through holes — honeycomb or circle-punch — via boolean CSG; see **Perforation**
+  below). All five compose freely and correctly together (e.g. perforation holes
+  tile correctly across a twisted, superformula-cross-sectioned surface).
+- **Blob** ([src/engine/blobGeometry.ts](src/engine/blobGeometry.ts) +
+  [src/shapes/blobShapes.ts](src/shapes/blobShapes.ts)) — a noise-displaced icosahedron:
+  the mathematical base behind gems, rocks, and asteroids. Components: **Roughness**
+  (3D noise displacement — the technique behind open-source procedural rock/gem
+  generators; low "detail" keeps flat gem-like facets, high detail + roughness gives a
+  craggy boulder), **Flatten** (squashes top/bottom into an egg/lens shape).
+- **Branch** ([src/engine/branchGeometry.ts](src/engine/branchGeometry.ts) +
+  [src/shapes/branchShapes.ts](src/shapes/branchShapes.ts)) — a recursive, seeded
+  branching structure (coral/root/tree), in the spirit of classic procedural L-system
+  generators. No separate components — depth, branch count, and seed *are* the
+  customization; change the seed for an entirely different specimen. Tapered cylinder
+  segments joined by spheres; each is individually closed/watertight, so the union
+  prints correctly without a CSG boolean step.
+- **Photo Panel** ([src/engine/lithophaneGeometry.ts](src/engine/lithophaneGeometry.ts) +
+  [src/shapes/lithophaneShapes.ts](src/shapes/lithophaneShapes.ts)) — upload a photo and
+  it becomes a flat relief panel (thick where dark, thin where light) — the classic
+  lithophane technique. See **Photo-to-relief** below.
+
+**Quick-start templates**: the eleven previously separate Revolve "shapes" (Lamp Shade,
+Vase, Planter/Pot, Tumbler/Cup, Twisted Spire, Wave Bowl, Organic Pod, Flower Vase, Gear
+Planter, Lamp Base, Honeycomb Lamp Shade) and the two Blob ones (Crystal Gem, Boulder)
+still exist, but as **named starting points** ([src/shapes/revolveTemplates.ts](src/shapes/revolveTemplates.ts),
+[src/shapes/blobTemplates.ts](src/shapes/blobTemplates.ts)) rather than distinct fixed
+shapes — clicking one just loads that combination of components/values into the same
+Revolve or Blob editor, and you keep adding, removing, and tuning from there. A
+`ShapeDefinition`'s param *ranges* live once on the base shape; a `ShapeTemplate` is just
+a values overlay on top, so there's a single source of truth for what's tunable.
+
+Every base shape *and every template* is regression-checked for zero non-manifold edges
+via `npm run verify:geometry`, including closed/sealed sculptural forms (Organic Pod)
+and merged multi-mesh structures (Coral Branch).
 
 - **Live preview** ([src/components/Viewer3D.tsx](src/components/Viewer3D.tsx)): React
   Three Fiber canvas with auto-framing camera, orbit controls, and real-time geometry
@@ -62,10 +73,10 @@ API.)
 
 ### Sketch-to-profile
 
-Revolve shapes are, mathematically, just a 2D silhouette spun around an axis — the same
+The Revolve base is, mathematically, just a 2D silhouette spun around an axis — the same
 principle behind real lathe/pottery-wheel design. So "sketch to 3D" is implemented
-honestly and locally for this shape family, no AI required: pick **Profile curve →
-Custom sketch** on any revolve shape and [SketchPad](src/components/SketchPad.tsx) opens.
+honestly and locally, no AI required: add the **Profile Curve** component and pick
+**Custom sketch** and [SketchPad](src/components/SketchPad.tsx) opens.
 
 - **Draw**: drag across the canvas (left edge = center axis, right = wider) to paint a
   half-profile; it's mirrored live into the full silhouette and immediately revolved.
@@ -81,14 +92,14 @@ silhouette). That's a materially different, much harder problem; see Phase 2 bel
 
 ### Perforation (real cut-through holes — honeycomb lamps, etc.)
 
-The **surface texture** layer (ribs/waves/organic) only *displaces* the surface — it
+The **Surface Texture** component (ribs/waves/organic) only *displaces* the surface — it
 can't make an actual hole, so it can't produce a real honeycomb-perforated lamp shade
-where light shines through open hexagons. **Perforation** is a separate layer that
-actually removes material via boolean CSG: pick **Perforation → Honeycomb** or **Circle
-punch** on any revolve shape (or start from the **Honeycomb Lamp Shade** preset), tune
-hole spacing/size, and it cuts a real grid of holes through the wall — tiled correctly
-across twisted, tapered, or superformula-cross-sectioned surfaces alike, since it drills
-each hole using the shape's own exact outer-surface position and normal at that point.
+where light shines through open hexagons. **Perforation** is a separate component that
+actually removes material via boolean CSG: add it, pick **Honeycomb** or **Circle
+punch** (or start from the **Honeycomb Lamp Shade** quick-start template), tune hole
+spacing/size, and it cuts a real grid of holes through the wall — tiled correctly across
+twisted, tapered, or superformula-cross-sectioned surfaces alike, since it drills each
+hole using the shape's own exact outer-surface position and normal at that point.
 
 **Why manifold-3d and not three-bvh-csg**: the first implementation used
 [three-bvh-csg](https://github.com/gkjohnson/three-bvh-csg), a popular three.js CSG

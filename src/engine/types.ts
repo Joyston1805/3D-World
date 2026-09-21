@@ -55,12 +55,40 @@ export interface Heightmap {
  */
 export type ParamValues = Record<string, number | string | boolean | number[] | Heightmap>
 
+/**
+ * An addable/removable feature layer within a shape (e.g. "Twist", "Perforation").
+ * Lets a base shape be built up dynamically — start plain, add components, customize —
+ * instead of picking a whole pre-baked shape identity.
+ */
+export interface ComponentGroup {
+  id: string
+  label: string
+  description: string
+  /** Param keys owned by this component; hidden/shown together as a unit. */
+  paramKeys: string[]
+  isActive: (values: ParamValues) => boolean
+  /** Patch applied when the user clicks "+ Add" — sets it to a sensible non-neutral state. */
+  activate: (values: ParamValues) => ParamValues
+  /** Patch applied when the user clicks "Remove" — resets to the neutral/off state. */
+  deactivate: (values: ParamValues) => ParamValues
+}
+
+/** A named starting point (a preset bundle of param values) for a base shape. */
+export interface ShapeTemplate {
+  id: string
+  name: string
+  description: string
+  values: ParamValues
+}
+
 export interface ShapeDefinition {
   id: string
   name: string
   description: string
   params: ParamDef[]
   build: (values: ParamValues) => THREE.BufferGeometry
+  /** Toggleable feature layers, for shapes built dynamically (see ComponentGroup). */
+  componentGroups?: ComponentGroup[]
 }
 
 export function defaultValuesFor(params: ParamDef[]): ParamValues {

@@ -1,14 +1,14 @@
 import * as fs from 'node:fs'
 import * as THREE from 'three'
 import { STLExporter } from 'three-stdlib'
-import { shapeCatalog } from '../src/shapes/catalog'
+import { shapeCatalog, templatesByShapeId } from '../src/shapes/catalog'
 import { defaultValuesFor } from '../src/engine/types'
+import type { ParamValues } from '../src/engine/types'
 import { ensureManifoldLoading } from '../src/engine/manifoldSingleton'
 
-// Perforated shapes (e.g. Honeycomb Lamp Shade) need the manifold-3d WASM module for
-// their CSG step; without this, applyPerforation() silently skips perforation (the
-// same graceful-degradation the browser uses while it loads) and this script would
-// never actually exercise that code path.
+// Perforated shapes need the manifold-3d WASM module for their CSG step; without
+// this, applyPerforation() silently skips perforation (the same graceful-degradation
+// the browser uses while it loads) and this script would never exercise that path.
 await ensureManifoldLoading()
 
 function posKey(x: number, y: number, z: number): string {
@@ -25,9 +25,7 @@ function posKey(x: number, y: number, z: number): string {
   return `${round(x).toFixed(4)}_${round(y).toFixed(4)}_${round(z).toFixed(4)}`
 }
 
-for (const shape of shapeCatalog) {
-  const values = defaultValuesFor(shape.params)
-  const geometry = shape.build(values)
+function verify(label: string, geometry: THREE.BufferGeometry) {
   const pos = geometry.getAttribute('position')
   const index = geometry.getIndex()
   let nanCount = 0
@@ -80,9 +78,20 @@ for (const shape of shapeCatalog) {
   const triCountFromHeader = buf.readUInt32LE(80)
 
   fs.mkdirSync('scripts/out', { recursive: true })
-  fs.writeFileSync(`scripts/out/${shape.id}.stl`, buf)
+  fs.writeFileSync(`scripts/out/${label}.stl`, buf)
 
   console.log(
-    `${shape.id}: verts=${pos.count} tris=${triCount} nan=${nanCount} degenerate=${degenerate} nonManifoldEdges=${nonManifoldEdges} stlHeaderTris=${triCountFromHeader} stlBytes=${buf.length}`,
+    `${label}: verts=${pos.count} tris=${triCount} nan=${nanCount} degenerate=${degenerate} nonManifoldEdges=${nonManifoldEdges} stlHeaderTris=${triCountFromHeader} stlBytes=${buf.length}`,
   )
+}
+
+for (const shape of shapeCatalog) {
+  const defaults = defaultValuesFor(shape.params)
+  verify(`${shape.id}-defaults`, shape.build(defaults))
+
+  const templates = templatesByShapeId[shape.id] ?? []
+  for (const t of templates) {
+    const values: ParamValues = { ...defaults, ...t.values }
+    verify(`${shape.id}--${t.id}`, shape.build(values))
+  }
 }
