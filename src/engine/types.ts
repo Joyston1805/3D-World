@@ -40,13 +40,20 @@ export interface BooleanParam {
 
 export type ParamDef = NumberParam | SelectParam | ColorParam | BooleanParam
 
+/** Row-major grayscale brightness grid (0=black..1=white) sampled from an uploaded image. */
+export interface Heightmap {
+  data: Float32Array
+  cols: number
+  rows: number
+}
+
 /**
- * number[] values are never produced by a ParamDef slider — they're written directly
- * by a custom UI component (e.g. SketchPad) via the same setParam channel, and read
- * back out by a shape's build() function. The generic ParamPanel renderer never
- * iterates over them since no ParamDef declares that type.
+ * number[]/Heightmap values are never produced by a ParamDef slider — they're written
+ * directly by a custom UI component (e.g. SketchPad, ImageUploadControl) via the same
+ * setParam channel, and read back out by a shape's build() function. The generic
+ * ParamPanel renderer never iterates over them since no ParamDef declares that type.
  */
-export type ParamValues = Record<string, number | string | boolean | number[]>
+export type ParamValues = Record<string, number | string | boolean | number[] | Heightmap>
 
 export interface ShapeDefinition {
   id: string

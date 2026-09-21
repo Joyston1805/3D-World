@@ -1,5 +1,8 @@
 import { Fragment } from 'react'
+import type { Heightmap } from '../engine/types'
 import { getShape } from '../shapes/catalog'
+import { ColorBandGuide } from './ColorBandGuide'
+import { ImageUploadControl } from './ImageUploadControl'
 import { SketchPad } from './SketchPad'
 import { useDesignStore } from '../store/useDesignStore'
 
@@ -7,10 +10,13 @@ export function ParamPanel() {
   const selectedShapeId = useDesignStore((s) => s.selectedShapeId)
   const values = useDesignStore((s) => s.valuesByShape[s.selectedShapeId])
   const setParam = useDesignStore((s) => s.setParam)
+  const setParamsForShape = useDesignStore((s) => s.setParamsForShape)
   const resetShape = useDesignStore((s) => s.resetShape)
 
   const shape = getShape(selectedShapeId)
   if (!shape) return null
+
+  const isLithophane = shape.id === 'lithophane-panel'
 
   return (
     <div className="flex h-full flex-col gap-4 overflow-y-auto p-4">
@@ -28,6 +34,18 @@ export function ParamPanel() {
       </div>
 
       <div className="flex flex-col gap-4">
+        {isLithophane && (
+          <ImageUploadControl
+            label="Click to upload a photo (JPG or PNG)"
+            hint="The panel's height auto-adjusts to match the photo's aspect ratio."
+            onLoaded={(heightmap: Heightmap, aspect: number) =>
+              setParamsForShape(selectedShapeId, {
+                heightmap,
+                heightMm: Number(values.widthMm) * aspect,
+              })
+            }
+          />
+        )}
         {shape.params.map((param) => {
           if (param.showIf && !param.showIf(values)) return null
           const value = values[param.key]
@@ -37,7 +55,7 @@ export function ParamPanel() {
                 <span className="flex justify-between">
                   <span>{param.label}</span>
                   <span className="text-slate-500">
-                    {value}
+                    {Number(value)}
                     {param.unit}
                   </span>
                 </span>
@@ -106,6 +124,10 @@ export function ParamPanel() {
             </label>
           )
         })}
+
+        {isLithophane && (
+          <ColorBandGuide minThickness={Number(values.minThickness)} maxThickness={Number(values.maxThickness)} />
+        )}
       </div>
 
       <p className="mt-auto text-[11px] leading-relaxed text-slate-500">

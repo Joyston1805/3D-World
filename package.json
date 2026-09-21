@@ -4,8 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "dev:all": "concurrently -n web,api -c cyan,magenta \"vite\" \"npm:dev:server\"",
+    "dev": "concurrently -n web,api -c cyan,magenta \"vite\" \"npm:dev:server\"",
+    "dev:web": "vite",
     "dev:server": "tsx watch server/index.ts",
     "build": "tsc -b && vite build",
     "lint": "oxlint",

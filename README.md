@@ -6,7 +6,7 @@ print-ready STL for Bambu Studio (or any slicer).
 
 ## What's here (Phase 1 — parametric customizer)
 
-Three geometry families, twelve catalog entries, all built on techniques borrowed from
+Four geometry families, thirteen catalog entries, all built on techniques borrowed from
 real open-source/generative-design tooling (see **Where these techniques come from**
 below) rather than invented from scratch:
 
@@ -39,6 +39,10 @@ below) rather than invented from scratch:
   L-system generators — tapered cylinder segments joined by spheres; change the seed for
   an entirely different specimen. Each segment is individually closed/watertight, so the
   union prints correctly without a CSG boolean step.
+- **Lithophane family** ([src/engine/lithophaneGeometry.ts](src/engine/lithophaneGeometry.ts) +
+  [src/shapes/lithophaneShapes.ts](src/shapes/lithophaneShapes.ts)): Photo Panel. Upload a
+  photo and it becomes a flat relief panel — thick where the image is dark, thin where
+  it's light, the classic backlit-lithophane technique. See **Photo-to-relief** below.
 
 Every shape is regression-checked for zero non-manifold edges via `npm run
 verify:geometry`, including closed/sealed sculptural forms (Organic Pod) and merged
@@ -73,6 +77,33 @@ This intentionally does *not* attempt general image-to-3D (an uploaded photo of,
 whole room or an arbitrary 3D object won't produce anything sensible — it only reads a
 silhouette). That's a materially different, much harder problem; see Phase 2 below.
 
+### Photo-to-relief (lithophane) + color band guide for the Bambu A1
+
+The **Photo Panel** shape ([src/lib/imageToHeightmap.ts](src/lib/imageToHeightmap.ts) +
+[src/engine/lithophaneGeometry.ts](src/engine/lithophaneGeometry.ts)) turns an uploaded
+photo into a flat relief slab, built the same way as everything else here: a front
+relief surface sampled from the image's grayscale brightness (dark = thick, light =
+thin) plus a flat back plane, sealed by a perimeter rim into one watertight solid. The
+panel's height auto-matches the photo's aspect ratio, so nothing gets stretched.
+
+This one physical shape serves two different print techniques:
+- **Backlit lithophane** (the classic technique): print in one translucent filament and
+  put it in front of a light — the varying thickness alone reproduces the image in
+  grayscale, no color/AMS needed.
+- **Opaque multi-color art on an AMS printer** (e.g. Bambu Lab A1): [ColorBandGuide](src/components/ColorBandGuide.tsx)
+  splits the thickness range into bands and tells you the exact Z heights to trigger a
+  filament color change in Bambu Studio. Since every column's *tallest visible layer*
+  determines its printed color, and brighter image areas are shorter (per the lithophane
+  formula above), assigning your lightest filament to the base band and your darkest to
+  the top band makes the printed color roughly track the image's tone — using height
+  alone, no color-transmission data required.
+- **What this deliberately isn't**: true HueForge-style multi-layer color *blending*
+  (translucent layers of different colors stacked and blended based on each filament's
+  actual measured transmission distance) is a materially harder, different problem that
+  needs calibrated per-filament data this app doesn't have. The band-guide technique
+  above is the well-established simpler alternative — honest about the difference rather
+  than pretending to replicate it.
+
 ### Where these techniques come from
 
 - [Gielis superformula](https://en.wikipedia.org/wiki/Superformula) — a single polar
@@ -89,6 +120,10 @@ silhouette). That's a materially different, much harder problem; see Phase 2 bel
   directly implemented as the Blob family.
 - Procedural L-system / recursive branch generators (a standard technique for
   trees/coral/roots in generative art) — directly implemented as the Branch family.
+- Lithophanes (a very old technique, originally porcelain, now a 3D-printing staple) and
+  the height-band approach to multi-color AMS prints (a simpler, honest alternative to
+  full HueForge-style translucency blending) — directly implemented as the Lithophane
+  family and [ColorBandGuide](src/components/ColorBandGuide.tsx).
 
 ### Known limitation
 
@@ -156,8 +191,13 @@ store (`zustand`) and STL export logic would mostly carry over as-is.
 - A true perforated Voronoi-cell shell (real cut-through holes, not just a bump
   texture) — needs a CSG boolean step, e.g. via `three-bvh-csg`, to subtract cells from
   the revolve shell.
-- More shape families beyond revolve/blob/branch (extruded/boxy things, text/monogram
-  embossing, multi-part assemblies, gridfinity-style modular bins).
+- Real HueForge-style multi-layer color blending for the Photo Panel (needs calibrated
+  per-filament transmission-distance data — see **Photo-to-relief** above for why the
+  simpler band-guide approach was chosen instead for now).
+- A cylindrical/wrapped lithophane ("photo lamp shade") using the same heightmap
+  technique on the revolve-shell family's surface-texture layer.
+- More shape families beyond revolve/blob/branch/lithophane (extruded/boxy things,
+  text/monogram embossing, multi-part assemblies, gridfinity-style modular bins).
 - Save/load a design (params) as a small JSON file, and a gallery of past designs.
 - 3MF export with color.
 - Drainage-hole / mounting-hole cutouts for the planter (also needs real CSG).

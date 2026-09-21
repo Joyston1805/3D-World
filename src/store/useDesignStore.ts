@@ -1,13 +1,14 @@
 import { create } from 'zustand'
 import { defaultValuesFor } from '../engine/types'
-import type { ParamValues } from '../engine/types'
+import type { Heightmap, ParamValues } from '../engine/types'
 import { getShape, shapeCatalog } from '../shapes/catalog'
 
 interface DesignState {
   selectedShapeId: string
   valuesByShape: Record<string, ParamValues>
   selectShape: (id: string) => void
-  setParam: (key: string, value: number | string | boolean | number[]) => void
+  setParam: (key: string, value: number | string | boolean | number[] | Heightmap) => void
+  setParamsForShape: (shapeId: string, patch: ParamValues) => void
   resetShape: (id: string) => void
 }
 
@@ -27,6 +28,16 @@ export const useDesignStore = create<DesignState>((set) => ({
         [state.selectedShapeId]: {
           ...state.valuesByShape[state.selectedShapeId],
           [key]: value,
+        },
+      },
+    })),
+  setParamsForShape: (shapeId, patch) =>
+    set((state) => ({
+      valuesByShape: {
+        ...state.valuesByShape,
+        [shapeId]: {
+          ...state.valuesByShape[shapeId],
+          ...patch,
         },
       },
     })),
