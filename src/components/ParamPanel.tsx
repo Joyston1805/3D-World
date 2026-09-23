@@ -2,6 +2,7 @@ import { Fragment } from 'react'
 import type { ComponentGroup, Heightmap, ParamDef, ParamValues } from '../engine/types'
 import { getShape, templatesByShapeId } from '../shapes/catalog'
 import { ColorBandGuide } from './ColorBandGuide'
+import { GpxUploadControl } from './GpxUploadControl'
 import { ImageUploadControl } from './ImageUploadControl'
 import { LocationControl } from './LocationControl'
 import { SketchPad } from './SketchPad'
@@ -217,19 +218,28 @@ export function ParamPanel() {
         )}
 
         {isTerrain && (
-          <LocationControl
-            lat={Number(values.lat)}
-            lon={Number(values.lon)}
-            spanKm={Number(values.spanKm)}
-            gridResolution={Number(values.gridResolution)}
-            onLocationChange={(lat, lon, spanKm) => setParamsForShape(selectedShapeId, { lat, lon, spanKm })}
-            onFetched={({ heightmap, minElevationM, maxElevationM }) =>
-              setParamsForShape(selectedShapeId, {
-                elevationGrid: heightmap,
-                elevationRangeM: maxElevationM - minElevationM,
-              })
-            }
-          />
+          <>
+            <GpxUploadControl
+              hasRoute={Array.isArray(values.routePoints) && (values.routePoints as number[]).length > 3}
+              onLoaded={(flatRoute, lat, lon, spanKm) =>
+                setParamsForShape(selectedShapeId, { routePoints: flatRoute, lat, lon, spanKm })
+              }
+              onClear={() => setParam('routePoints', [])}
+            />
+            <LocationControl
+              lat={Number(values.lat)}
+              lon={Number(values.lon)}
+              spanKm={Number(values.spanKm)}
+              gridResolution={Number(values.gridResolution)}
+              onLocationChange={(lat, lon, spanKm) => setParamsForShape(selectedShapeId, { lat, lon, spanKm })}
+              onFetched={({ heightmap, minElevationM, maxElevationM }) =>
+                setParamsForShape(selectedShapeId, {
+                  elevationGrid: heightmap,
+                  elevationRangeM: maxElevationM - minElevationM,
+                })
+              }
+            />
+          </>
         )}
 
         {coreParams.map((param) => (

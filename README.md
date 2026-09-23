@@ -164,15 +164,29 @@ height source is real-world elevation for a location you pick — inspired direc
   keeping with the "no accounts" spirit of the sites this is modeled on. Verified
   working directly from the browser (CORS-enabled); requests are batched at 100
   coordinates each (the API's per-request limit).
+- **GPX route overlay** ([src/lib/gpx.ts](src/lib/gpx.ts) +
+  [src/lib/geo.ts](src/lib/geo.ts) + [src/components/GpxUploadControl.tsx](src/components/GpxUploadControl.tsx)) —
+  upload a `.gpx` file (exported from Strava, Garmin, Komoot, etc.) and your exact route
+  is embossed as a raised line over the terrain, with the location and area span
+  auto-fit to the route's bounding box. This is the signature look of
+  [Type II Studio](https://typeii.studio)'s route-art prints: the route is parsed
+  client-side (`DOMParser` over `<trkpt>`/`<rtept>`), converted to normalized panel UV
+  coordinates, and added as a point-to-segment-distance falloff on top of the elevation
+  heightmap inside the same `thicknessAt(u, v)` function the relief panel already uses —
+  no separate mesh, no CSG, so it stays watertight for free. A route with no elevation
+  data loaded yet (or one that falls outside the fetched area) still renders cleanly; it
+  just has nothing to sit on top of, or falls outside the panel bounds and has zero
+  visible influence.
 - **Vertical exaggeration**: real terrain is usually far too subtle to read at desk-model
   scale, so the relief height is computed as "true-to-scale for this print's horizontal
   size" times an exaggeration multiplier (default 5x), not applied blindly.
 - **Honest scope for now**: this is a genuine first version, not a clone of every
-  TrailPrint3D/3DTrails feature. No GPX trail-line overlay, no automatic terrain
-  coloring, no contour lines, no non-rectangular (circle/hex) outlines, no place-name
-  search (Nominatim's usage policy discourages the kind of direct client-side calls this
-  app would need, so it's skipped rather than built against a policy it wouldn't
-  respect) — square panels from a manually-entered or preset coordinate only. See
+  TrailPrint3D/3DTrails/Type II Studio feature. No automatic terrain coloring, no
+  contour lines, no non-rectangular (circle/hex) outlines, no title/subtitle text or
+  medal-mount hardware, no multi-route compositions, no place-name search (Nominatim's
+  usage policy discourages the kind of direct client-side calls this app would need, so
+  it's skipped rather than built against a policy it wouldn't respect) — square panels
+  from a manually-entered or preset coordinate, with an optional single route, only. See
   Roadmap.
 
 ### Where these techniques come from
@@ -199,10 +213,12 @@ height source is real-world elevation for a location you pick — inspired direc
   the height-band approach to multi-color AMS prints (a simpler, honest alternative to
   full HueForge-style translucency blending) — directly implemented as the Lithophane
   family and [ColorBandGuide](src/components/ColorBandGuide.tsx).
-- [TrailPrint3D](https://trailprint3d.com) (a free Blender add-on) and
-  [3DTrails](https://3d-trails.com) (pre-made topo-map prints of famous trails) —
-  directly implemented as the Terrain Map family, at a first-version scope; see
-  **Terrain maps from real elevation data** above for exactly what's included vs. not yet.
+- [TrailPrint3D](https://trailprint3d.com) (a free Blender add-on),
+  [3DTrails](https://3d-trails.com) (pre-made topo-map prints of famous trails), and
+  [Type II Studio](https://typeii.studio) (GPX-route-as-raised-line wall art) —
+  directly implemented as the Terrain Map family (including the GPX route overlay), at
+  a first-version scope; see **Terrain maps from real elevation data** above for exactly
+  what's included vs. not yet.
 
 ### Known limitation
 
@@ -289,10 +305,10 @@ store (`zustand`) and STL export logic would mostly carry over as-is.
 - 3MF export with color.
 - Drainage-hole / mounting-hole cutouts for the planter — now straightforward since
   the Perforation layer's CSG plumbing already exists.
-- Terrain Map: GPX trail-line overlay (emboss the actual route onto the relief), circle/
-  hex/frame outline options, automatic biome coloring, contour lines, multi-tile maps
-  for wall-scale prints — the full TrailPrint3D/3DTrails feature set is a lot more than
-  the current first version.
+- Terrain Map: circle/hex/frame outline options, automatic biome coloring, contour
+  lines, title/subtitle text embossing, multi-route compositions, multi-tile maps for
+  wall-scale prints — the full TrailPrint3D/3DTrails/Type II Studio feature set is a lot
+  more than the current first version (which now includes GPX route overlay).
 - A parametric humanoid/character base (in the spirit of open-source morphable-model
   tools like MakeHuman) as a genuine mathematical alternative to AI generation for
   figurines/dolls — a much larger undertaking (a trained blend-shape body model, not a
