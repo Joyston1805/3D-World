@@ -3,6 +3,7 @@ import type { ComponentGroup, Heightmap, ParamDef, ParamValues } from '../engine
 import { getShape, templatesByShapeId } from '../shapes/catalog'
 import { ColorBandGuide } from './ColorBandGuide'
 import { ImageUploadControl } from './ImageUploadControl'
+import { LocationControl } from './LocationControl'
 import { SketchPad } from './SketchPad'
 import { useDesignStore } from '../store/useDesignStore'
 
@@ -162,6 +163,7 @@ export function ParamPanel() {
   if (!shape) return null
 
   const isLithophane = shape.id === 'lithophane-panel'
+  const isTerrain = shape.id === 'terrain'
   const templates = templatesByShapeId[shape.id]
 
   const groupedKeys = new Set(shape.componentGroups?.flatMap((g) => g.paramKeys) ?? [])
@@ -209,6 +211,22 @@ export function ParamPanel() {
               setParamsForShape(selectedShapeId, {
                 heightmap,
                 heightMm: Number(values.widthMm) * aspect,
+              })
+            }
+          />
+        )}
+
+        {isTerrain && (
+          <LocationControl
+            lat={Number(values.lat)}
+            lon={Number(values.lon)}
+            spanKm={Number(values.spanKm)}
+            gridResolution={Number(values.gridResolution)}
+            onLocationChange={(lat, lon, spanKm) => setParamsForShape(selectedShapeId, { lat, lon, spanKm })}
+            onFetched={({ heightmap, minElevationM, maxElevationM }) =>
+              setParamsForShape(selectedShapeId, {
+                elevationGrid: heightmap,
+                elevationRangeM: maxElevationM - minElevationM,
               })
             }
           />

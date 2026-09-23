@@ -22,3 +22,18 @@ export async function generateModelFromImage(file: File): Promise<ArrayBuffer> {
   }
   return res.arrayBuffer()
 }
+
+/** Same backend proxy, driven by a text description instead of a photo — e.g.
+ *  "a small seated Buddha statue" or "a standing human figurine in a coat". */
+export async function generateModelFromText(prompt: string): Promise<ArrayBuffer> {
+  const res = await fetch('/api/generate-from-text', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt }),
+  })
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { error?: string } | null
+    throw new Error(body?.error ?? `Request failed (${res.status}).`)
+  }
+  return res.arrayBuffer()
+}

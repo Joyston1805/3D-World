@@ -10,7 +10,7 @@ Studio (or any slicer).
 ### Base shape → components → customize
 
 Rather than picking one of a fixed list of finished, differently-named shapes, you pick
-one of four **base mathematical forms** ([src/components/ShapeGallery.tsx](src/components/ShapeGallery.tsx)),
+one of five **base mathematical forms** ([src/components/ShapeGallery.tsx](src/components/ShapeGallery.tsx)),
 each of which starts in its plainest possible state (a bare cylinder, a plain sphere)
 and exposes a set of **components** you add and remove yourself
 ([src/components/ParamPanel.tsx](src/components/ParamPanel.tsx), `ComponentGroup` in
@@ -46,6 +46,10 @@ genuinely built up rather than chosen whole:
   [src/shapes/lithophaneShapes.ts](src/shapes/lithophaneShapes.ts)) — upload a photo and
   it becomes a flat relief panel (thick where dark, thin where light) — the classic
   lithophane technique. See **Photo-to-relief** below.
+- **Terrain Map** ([src/engine/terrainGeometry.ts](src/engine/terrainGeometry.ts) +
+  [src/shapes/terrainShapes.ts](src/shapes/terrainShapes.ts)) — the same relief-panel
+  technique, but the height source is real-world elevation data for a location you pick,
+  not an image. See **Terrain maps from real elevation data** below.
 
 **Quick-start templates**: the eleven previously separate Revolve "shapes" (Lamp Shade,
 Vase, Planter/Pot, Tumbler/Cup, Twisted Spire, Wave Bowl, Organic Pod, Flower Vase, Gear
@@ -145,6 +149,32 @@ This one physical shape serves two different print techniques:
   above is the well-established simpler alternative — honest about the difference rather
   than pretending to replicate it.
 
+### Terrain maps from real elevation data
+
+The **Terrain Map** shape ([src/lib/elevation.ts](src/lib/elevation.ts) +
+[src/engine/terrainGeometry.ts](src/engine/terrainGeometry.ts)) is the same watertight
+relief-panel construction as the Photo Panel, but instead of image brightness, the
+height source is real-world elevation for a location you pick — inspired directly by
+3D-printed topographic trail-map art (e.g. TrailPrint3D, 3DTrails).
+
+- Pick a location (five built-in presets — Grand Canyon, Half Dome, Mount Rainier, Zion
+  Narrows, Matterhorn — or any latitude/longitude) and an area span in km, then **Fetch
+  Terrain Data**: this samples a grid of real elevation points via
+  [Open-Meteo](https://open-meteo.com)'s free, key-less elevation API — no account, in
+  keeping with the "no accounts" spirit of the sites this is modeled on. Verified
+  working directly from the browser (CORS-enabled); requests are batched at 100
+  coordinates each (the API's per-request limit).
+- **Vertical exaggeration**: real terrain is usually far too subtle to read at desk-model
+  scale, so the relief height is computed as "true-to-scale for this print's horizontal
+  size" times an exaggeration multiplier (default 5x), not applied blindly.
+- **Honest scope for now**: this is a genuine first version, not a clone of every
+  TrailPrint3D/3DTrails feature. No GPX trail-line overlay, no automatic terrain
+  coloring, no contour lines, no non-rectangular (circle/hex) outlines, no place-name
+  search (Nominatim's usage policy discourages the kind of direct client-side calls this
+  app would need, so it's skipped rather than built against a policy it wouldn't
+  respect) — square panels from a manually-entered or preset coordinate only. See
+  Roadmap.
+
 ### Where these techniques come from
 
 - [Gielis superformula](https://en.wikipedia.org/wiki/Superformula) — a single polar
@@ -169,6 +199,10 @@ This one physical shape serves two different print techniques:
   the height-band approach to multi-color AMS prints (a simpler, honest alternative to
   full HueForge-style translucency blending) — directly implemented as the Lithophane
   family and [ColorBandGuide](src/components/ColorBandGuide.tsx).
+- [TrailPrint3D](https://trailprint3d.com) (a free Blender add-on) and
+  [3DTrails](https://3d-trails.com) (pre-made topo-map prints of famous trails) —
+  directly implemented as the Terrain Map family, at a first-version scope; see
+  **Terrain maps from real elevation data** above for exactly what's included vs. not yet.
 
 ### Known limitation
 
@@ -176,20 +210,28 @@ Plain STL carries no color information. The color picker is preview-only for now
 future update can add 3MF export (which Bambu Studio reads with per-object/multi-color
 info) for shapes that use a single flat color.
 
-## Phase 2 — AI Generate (arbitrary photos, via Meshy)
+## Phase 2 — AI Generate (arbitrary objects — figurines, idols, characters — via Meshy)
 
-For photos/sketches that aren't revolve-symmetric (sketch-to-profile above only covers
-silhouette shapes), the **AI Generate** tab sends an uploaded image to
-[Meshy](https://www.meshy.ai)'s image-to-3D API and returns a real, arbitrary mesh —
-requested directly in STL format, so no format conversion step is needed.
+For genuinely arbitrary organic/character shapes no amount of revolve/blob/branch math
+can produce — figurines, religious idols, human dolls, mascots, busts — the **AI
+Generate** tab sends a prompt or a photo to [Meshy](https://www.meshy.ai)'s API and
+returns a real, arbitrary mesh, requested directly in STL format so no format
+conversion step is needed:
 
+- **From description**: Meshy's text-to-3D API, two-stage (preview = geometry, refine =
+  texture) — since printing only needs geometry, this always stops after the untextured
+  preview stage, skipping texturing entirely (cheaper, faster). Try "a small seated
+  Buddha statue", "a Ganesha idol, traditional Indian style", "a standing human
+  figurine" — the example prompts in the panel are exactly this use case.
+- **From photo**: Meshy's image-to-3D API, for when you have a reference image instead.
 - [server/index.ts](server/index.ts) — a small local Express backend that holds the
   Meshy API key server-side (it must never reach the browser) and proxies
-  `POST /api/generate-from-image`: creates a Meshy task, polls it to completion
-  ([server/meshy.ts](server/meshy.ts)), downloads the resulting STL, and streams it back.
+  `POST /api/generate-from-image` and `POST /api/generate-from-text`: creates a Meshy
+  task, polls it to completion ([server/meshy.ts](server/meshy.ts)), downloads the
+  resulting STL, and streams it back.
 - The frontend ([src/components/AIGeneratePanel.tsx](src/components/AIGeneratePanel.tsx))
-  uploads the image, shows progress while it waits (generation typically takes
-  30s–a few minutes), then loads the returned STL via `STLLoader` into the same
+  shows progress while it waits (generation typically takes 30s–a few minutes), then
+  loads the returned STL via `STLLoader` into the same
   [Viewer3D](src/components/Viewer3D.tsx) the parametric shapes use, with a "scale to
   height" control (Meshy's output isn't in real-world mm) before export.
 - **Honest limitation**: unlike the parametric shapes (guaranteed watertight by
@@ -247,3 +289,12 @@ store (`zustand`) and STL export logic would mostly carry over as-is.
 - 3MF export with color.
 - Drainage-hole / mounting-hole cutouts for the planter — now straightforward since
   the Perforation layer's CSG plumbing already exists.
+- Terrain Map: GPX trail-line overlay (emboss the actual route onto the relief), circle/
+  hex/frame outline options, automatic biome coloring, contour lines, multi-tile maps
+  for wall-scale prints — the full TrailPrint3D/3DTrails feature set is a lot more than
+  the current first version.
+- A parametric humanoid/character base (in the spirit of open-source morphable-model
+  tools like MakeHuman) as a genuine mathematical alternative to AI generation for
+  figurines/dolls — a much larger undertaking (a trained blend-shape body model, not a
+  simple formula) than anything else in this app; AI Generate is the practical answer
+  for that use case today.

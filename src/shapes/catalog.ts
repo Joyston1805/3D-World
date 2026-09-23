@@ -5,12 +5,14 @@ import { branchShapes } from './branchShapes'
 import { lithophaneShapes } from './lithophaneShapes'
 import { revolveShapes } from './revolveShapes'
 import { revolveTemplates } from './revolveTemplates'
+import { terrainShapes } from './terrainShapes'
 
 export const shapeCatalog: ShapeDefinition[] = [
   ...revolveShapes,
   ...blobShapes,
   ...branchShapes,
   ...lithophaneShapes,
+  ...terrainShapes,
 ]
 
 /** Named starting points ("quick start" presets) per base shape id, if any. */

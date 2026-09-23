@@ -1,9 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { STLLoader } from 'three-stdlib'
-import { generateModelFromImage } from '../lib/aiGenerate'
+import { generateModelFromImage, generateModelFromText } from '../lib/aiGenerate'
 
 const loader = new STLLoader()
+const EXAMPLE_PROMPTS = [
+  'a small seated Buddha statue, hands in meditation mudra',
+  'a Ganesha idol, traditional Indian style, seated pose',
+  'a standing human figurine, arms at sides, neutral pose',
+  'a Greek marble bust of a woman on a plinth',
+]
 
 interface AIGeneratePanelProps {
   onGenerated: (geometry: THREE.BufferGeometry) => void
@@ -14,8 +20,10 @@ interface AIGeneratePanelProps {
 }
 
 export function AIGeneratePanel({ onGenerated, hasResult, onClear, scaleMm, onScaleChange }: AIGeneratePanelProps) {
+  const [source, setSource] = useState<'image' | 'text'>('text')
   const [file, setFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [prompt, setPrompt] = useState('')
   const [status, setStatus] = useState<'idle' | 'working' | 'error'>('idle')
   const [error, setError] = useState<string | null>(null)
   const [elapsed, setElapsed] = useState(0)
@@ -35,14 +43,17 @@ export function AIGeneratePanel({ onGenerated, hasResult, onClear, scaleMm, onSc
     setPreviewUrl(URL.createObjectURL(f))
   }
 
+  const canGenerate = source === 'image' ? !!file : prompt.trim().length > 0
+
   const handleGenerate = async () => {
-    if (!file) return
+    if (!canGenerate) return
     setStatus('working')
     setError(null)
     setElapsed(0)
     timerRef.current = setInterval(() => setElapsed((e) => e + 1), 1000)
     try {
-      const buffer = await generateModelFromImage(file)
+      const buffer =
+        source === 'image' ? await generateModelFromImage(file as File) : await generateModelFromText(prompt.trim())
       const geometry = loader.parse(buffer)
       geometry.computeVertexNormals()
       geometry.computeBoundingBox()
@@ -61,32 +72,71 @@ export function AIGeneratePanel({ onGenerated, hasResult, onClear, scaleMm, onSc
       <div>
         <h2 className="text-sm font-semibold text-slate-100">AI Generate (beta)</h2>
         <p className="text-xs text-slate-400">
-          Upload a rough sketch or photo — an AI model (via Meshy) generates an arbitrary 3D mesh
-          from it, not limited to revolve-symmetric shapes.
+          Describe or photograph anything — figurines, idols, characters, arbitrary objects — and an
+          AI model (via Meshy) generates a real 3D mesh, not limited to revolve-symmetric shapes.
         </p>
       </div>
 
-      <label className="flex cursor-pointer flex-col items-center gap-2 rounded-md border border-dashed border-slate-700 px-3 py-6 text-center text-xs text-slate-300 hover:bg-slate-800">
-        {previewUrl ? (
-          <img src={previewUrl} alt="Selected sketch" className="max-h-40 rounded object-contain" />
-        ) : (
-          <span>Click to choose an image (JPG or PNG)</span>
-        )}
-        <input
-          type="file"
-          accept="image/png,image/jpeg"
-          className="hidden"
-          onChange={(e) => {
-            const f = e.target.files?.[0]
-            if (f) handleFile(f)
-            e.target.value = ''
-          }}
-        />
-      </label>
+      <div className="flex rounded-md border border-slate-700 p-0.5 text-xs">
+        <button
+          onClick={() => setSource('text')}
+          className={`flex-1 rounded px-3 py-1 ${source === 'text' ? 'bg-emerald-500 text-emerald-950' : 'text-slate-300 hover:bg-slate-800'}`}
+        >
+          From description
+        </button>
+        <button
+          onClick={() => setSource('image')}
+          className={`flex-1 rounded px-3 py-1 ${source === 'image' ? 'bg-emerald-500 text-emerald-950' : 'text-slate-300 hover:bg-slate-800'}`}
+        >
+          From photo
+        </button>
+      </div>
+
+      {source === 'text' ? (
+        <div className="flex flex-col gap-2">
+          <textarea
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            maxLength={800}
+            rows={4}
+            placeholder="e.g. a small seated Buddha statue, hands in meditation mudra"
+            className="rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-100 placeholder:text-slate-600"
+          />
+          <div className="flex flex-wrap gap-1.5">
+            {EXAMPLE_PROMPTS.map((p) => (
+              <button
+                key={p}
+                onClick={() => setPrompt(p)}
+                className="rounded-full border border-slate-700 px-2 py-0.5 text-[11px] text-slate-400 hover:border-emerald-600 hover:text-emerald-300"
+              >
+                {p.length > 28 ? `${p.slice(0, 28)}…` : p}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <label className="flex cursor-pointer flex-col items-center gap-2 rounded-md border border-dashed border-slate-700 px-3 py-6 text-center text-xs text-slate-300 hover:bg-slate-800">
+          {previewUrl ? (
+            <img src={previewUrl} alt="Selected sketch" className="max-h-40 rounded object-contain" />
+          ) : (
+            <span>Click to choose an image (JPG or PNG)</span>
+          )}
+          <input
+            type="file"
+            accept="image/png,image/jpeg"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0]
+              if (f) handleFile(f)
+              e.target.value = ''
+            }}
+          />
+        </label>
+      )}
 
       <button
         onClick={handleGenerate}
-        disabled={!file || status === 'working'}
+        disabled={!canGenerate || status === 'working'}
         className="rounded-md bg-emerald-500 px-4 py-2 text-sm font-medium text-emerald-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
       >
         {status === 'working' ? `Generating… ${elapsed}s (can take a few minutes)` : 'Generate 3D Model'}
