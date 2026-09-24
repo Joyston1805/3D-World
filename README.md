@@ -181,11 +181,23 @@ height source is real-world elevation for a location you pick — inspired direc
   data loaded yet (or one that falls outside the fetched area) still renders cleanly; it
   just has nothing to sit on top of, or falls outside the panel bounds and has zero
   visible influence.
+- **Elevation colors** ([src/engine/terrainGeometry.ts](src/engine/terrainGeometry.ts),
+  [src/components/ElevationColorGuide.tsx](src/components/ElevationColorGuide.tsx)) — 2 to 4
+  colors from lowest to highest ground, with Alpine, Desert, Arctic, Topo Map and Forest
+  quick starts. The colors are Z bands, which is how multi-color terrain actually prints:
+  one STL, with a filament change at each band height. The preview cuts every triangle at
+  the band heights so it shows exactly those bands, and the **Elevation color guide** lists
+  the Z to change filament at (Bambu Studio's layer slider). There is deliberately no
+  per-color 3MF for terrain (unlike the city shapes): a color band of a terrain is an open
+  surface, not a closed solid, so splitting it into parts would not slice correctly. A
+  separate color for the GPX route line is also not offered, since a route is not a Z band;
+  paint it in Bambu Studio if you want it. Note the Z values scale with vertical
+  exaggeration, and the exported STL contains the extra band-boundary triangles.
 - **Vertical exaggeration**: real terrain is usually far too subtle to read at desk-model
   scale, so the relief height is computed as "true-to-scale for this print's horizontal
   size" times an exaggeration multiplier (default 5x), not applied blindly.
 - **Honest scope for now**: this is a genuine first version, not a clone of every
-  TrailPrint3D/3DTrails/Type II Studio feature. No automatic terrain coloring, no
+  TrailPrint3D/3DTrails/Type II Studio feature. No
   contour lines, no non-rectangular (circle/hex) outlines, no title/subtitle text or
   medal-mount hardware, no multi-route compositions, no place-name search (Nominatim's
   usage policy discourages the kind of direct client-side calls this app would need, so
@@ -349,7 +361,7 @@ store (`zustand`) and STL export logic would mostly carry over as-is.
 - 3MF export with color.
 - Drainage-hole / mounting-hole cutouts for the planter — now straightforward since
   the Perforation layer's CSG plumbing already exists.
-- Terrain Map: circle/hex/frame outline options, automatic biome coloring, contour
+- Terrain Map: circle/hex/frame outline options, contour
   lines, title/subtitle text embossing, multi-route compositions, multi-tile maps for
   wall-scale prints — the full TrailPrint3D/3DTrails/Type II Studio feature set is a lot
   more than the current first version (which now includes GPX route overlay).

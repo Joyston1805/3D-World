@@ -1,8 +1,11 @@
 import { Fragment } from 'react'
 import type { ComponentGroup, Heightmap, ParamDef, ParamValues } from '../engine/types'
+import { bandColors } from '../engine/cityPalette'
+import { terrainReliefMm } from '../engine/terrainGeometry'
 import { getShape, templatesByShapeId } from '../shapes/catalog'
 import { CityMapControl } from './CityMapControl'
 import { ColorBandGuide } from './ColorBandGuide'
+import { ElevationColorGuide } from './ElevationColorGuide'
 import { GpxUploadControl } from './GpxUploadControl'
 import { ImageUploadControl } from './ImageUploadControl'
 import { LocationControl } from './LocationControl'
@@ -276,6 +279,20 @@ export function ParamPanel() {
               />
             ))}
           </div>
+        )}
+
+        {isTerrain && values.colorMode !== 'single' && (
+          <ElevationColorGuide
+            colors={bandColors(values).map((c) => `#${c.getHexString()}`)}
+            baseThickness={Number(values.baseThickness)}
+            reliefMm={terrainReliefMm(
+              Number(values.elevationRangeM ?? 0),
+              Number(values.widthMm),
+              Number(values.spanKm),
+              Number(values.verticalExaggeration),
+            )}
+            hasElevationData={Number(values.elevationRangeM ?? 0) > 0}
+          />
         )}
 
         {isLithophane && (

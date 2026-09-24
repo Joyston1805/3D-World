@@ -6,7 +6,7 @@ import { cityMapTemplates, cityscapeTemplates, cityShapes } from './cityShapes'
 import { lithophaneShapes } from './lithophaneShapes'
 import { revolveShapes } from './revolveShapes'
 import { revolveTemplates } from './revolveTemplates'
-import { terrainShapes } from './terrainShapes'
+import { terrainShapes, terrainTemplates } from './terrainShapes'
 
 export const shapeCatalog: ShapeDefinition[] = [
   ...revolveShapes,
@@ -21,6 +21,7 @@ export const shapeCatalog: ShapeDefinition[] = [
 export const templatesByShapeId: Record<string, ShapeTemplate[]> = {
   revolve: revolveTemplates,
   blob: blobTemplates,
+  terrain: terrainTemplates,
   cityscape: cityscapeTemplates,
   citymap: cityMapTemplates,
 }

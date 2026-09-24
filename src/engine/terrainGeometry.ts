@@ -1,4 +1,4 @@
-import type * as THREE from 'three'
+import * as THREE from 'three'
 import { latLonToUV } from '../lib/geo'
 import type { GpxPoint } from '../lib/gpx'
 import { sampleHeightmap } from '../lib/imageToHeightmap'
@@ -30,6 +30,14 @@ export interface TerrainPanelParams {
   route?: GpxPoint[]
   routeEmbossHeight: number
   routeWidth: number
+  /** If set, the mesh gets per-triangle colors by elevation band (lowest first) for the preview. */
+  bandColors?: THREE.Color[]
+}
+
+/** Printed height of the terrain relief (top of highest point minus base), in mm. */
+export function terrainReliefMm(elevationRangeM: number, widthMm: number, spanKm: number, exaggeration: number): number {
+  const trueScaleReliefMm = elevationRangeM * (widthMm / (spanKm * 1000))
+  return Math.max(0.1, trueScaleReliefMm * Math.max(0, exaggeration))
 }
 
 function pointToSegmentDistance(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
@@ -45,8 +53,7 @@ function pointToSegmentDistance(px: number, py: number, ax: number, ay: number, 
 export function buildTerrainPanel(p: TerrainPanelParams): THREE.BufferGeometry {
   // "True to scale" relief height if this map were a scale model with no exaggeration:
   // real elevation range (m) times the panel's own horizontal scale factor.
-  const trueScaleReliefMm = p.elevationRangeM * (p.widthMm / (p.spanKm * 1000))
-  const reliefMm = Math.max(0.1, trueScaleReliefMm * Math.max(0, p.verticalExaggeration))
+  const reliefMm = terrainReliefMm(p.elevationRangeM, p.widthMm, p.spanKm, p.verticalExaggeration)
 
   // Pre-convert the route to normalized (u,v) once, not per grid sample.
   const routeUV =
@@ -67,7 +74,7 @@ export function buildTerrainPanel(p: TerrainPanelParams): THREE.BufferGeometry {
     return Math.max(0, 1 - minDist / halfWidth)
   }
 
-  return buildReliefPanel({
+  const panel = buildReliefPanel({
     widthMm: p.widthMm,
     heightMm: p.widthMm, // sampled as a square area, so the panel is square too
     resolution: p.resolution,
@@ -78,4 +85,76 @@ export function buildTerrainPanel(p: TerrainPanelParams): THREE.BufferGeometry {
       return terrainThickness + routeBump
     },
   })
+  const bands = p.bandColors
+  if (!bands) return panel
+
+  // Color by absolute Z, exactly as a print with filament changes at layer heights comes
+  // out: cut every triangle at the band heights so colors form clean horizontal bands.
+  const thresholds = Array.from({ length: bands.length - 1 }, (_, i) => p.baseThickness + ((i + 1) * reliefMm) / bands.length)
+  return colorByZBands(panel, thresholds, bands)
+}
+
+/** [x, y, z, nx, ny, nz] */
+type Vert = number[]
+
+/** Sutherland-Hodgman against the plane z = zc, keeping the side given by `above`. */
+function clipZ(poly: Vert[], zc: number, above: boolean): Vert[] {
+  const inside = (v: Vert) => (above ? v[2] >= zc : v[2] <= zc)
+  const out: Vert[] = []
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i]
+    const b = poly[(i + 1) % poly.length]
+    const ia = inside(a)
+    const ib = inside(b)
+    if (ia) out.push(a)
+    if (ia !== ib) {
+      // Interpolate from the lower-Z end so two triangles sharing an edge compute
+      // bit-identical cut points (keeps the split mesh watertight).
+      const [lo, hi] = a[2] <= b[2] ? [a, b] : [b, a]
+      const t = (zc - lo[2]) / (hi[2] - lo[2])
+      out.push(lo.map((v, k) => (k === 2 ? zc : v + t * (hi[k] - v))))
+    }
+  }
+  return out
+}
+
+function colorByZBands(panel: THREE.BufferGeometry, thresholds: number[], bandColors: THREE.Color[]): THREE.BufferGeometry {
+  const src = panel.toNonIndexed()
+  const pos = src.getAttribute('position')
+  const nor = src.getAttribute('normal')
+  const positions: number[] = []
+  const normals: number[] = []
+  const colors: number[] = []
+
+  for (let t = 0; t < pos.count; t += 3) {
+    const tri: Vert[] = [0, 1, 2].map((k) => [
+      pos.getX(t + k), pos.getY(t + k), pos.getZ(t + k), nor.getX(t + k), nor.getY(t + k), nor.getZ(t + k),
+    ])
+    for (let band = 0; band < bandColors.length; band++) {
+      let poly = tri
+      if (band > 0) poly = clipZ(poly, thresholds[band - 1], true)
+      if (poly.length >= 3 && band < thresholds.length) poly = clipZ(poly, thresholds[band], false)
+      if (poly.length < 3) continue
+      const color = bandColors[band]
+      for (let i = 1; i < poly.length - 1; i++) {
+        const [a, b, c] = [poly[0], poly[i], poly[i + 1]]
+        const cross = [
+          (b[1] - a[1]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[1] - a[1]),
+          (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]),
+          (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]),
+        ]
+        if (Math.hypot(cross[0], cross[1], cross[2]) < 1e-9) continue // sliver from a cut through a vertex
+        for (const v of [a, b, c]) {
+          positions.push(v[0], v[1], v[2])
+          normals.push(v[3], v[4], v[5])
+          colors.push(color.r, color.g, color.b)
+        }
+      }
+    }
+  }
+  const geo = new THREE.BufferGeometry()
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3))
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3))
+  return geo
 }
