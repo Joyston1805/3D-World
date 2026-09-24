@@ -95,3 +95,36 @@ for (const shape of shapeCatalog) {
     verify(`${shape.id}--${t.id}`, shape.build(values))
   }
 }
+
+// ---- City map (real footprints) with synthetic footprints, incl. a concave L-shape,
+// a self-intersecting bow-tie (must be skipped), and a building hanging off the edge. ----
+{
+  const { encodeFootprints } = await import('../src/engine/cityGeometry')
+  const { cityMap } = await import('../src/shapes/cityShapes')
+  const footprints = encodeFootprints([
+    { heightM: 80, points: [[0.2, 0.2], [0.4, 0.2], [0.4, 0.3], [0.3, 0.3], [0.3, 0.5], [0.2, 0.5]] }, // L-shape
+    { heightM: 30, points: [[0.6, 0.6], [0.7, 0.6], [0.7, 0.7], [0.6, 0.7]] },
+    { heightM: 200, points: [[0.8, 0.1], [0.9, 0.2], [0.9, 0.1], [0.8, 0.2]] }, // bow-tie -> skipped
+    { heightM: 50, points: [[0.95, 0.95], [1.1, 0.95], [1.1, 1.1], [0.95, 1.1]] }, // clamped to plate edge
+  ])
+  const values: ParamValues = { ...defaultValuesFor(cityMap.params), footprints }
+  verify('citymap-synthetic', cityMap.build(values))
+}
+
+// ---- 3MF round trip: one object per color, triangle counts preserved. ----
+{
+  const { build3mf } = await import('../src/lib/exportStl')
+  const { unzipSync, strFromU8 } = await import('fflate')
+  const { cityscape, cityscapeTemplates } = await import('../src/shapes/cityShapes')
+  const t = cityscapeTemplates.find((x) => x.id === 'downtown')!
+  const values: ParamValues = { ...defaultValuesFor(cityscape.params), ...t.values }
+  const geo = cityscape.build(values)
+  const bytes = build3mf(geo, true, 'verify')
+  fs.writeFileSync('scripts/out/cityscape-downtown.3mf', bytes)
+  const model = strFromU8(unzipSync(bytes)['3D/3dmodel.model'])
+  const objects = (model.match(/<object /g) ?? []).length
+  const tris = (model.match(/<triangle /g) ?? []).length
+  const srcTris = geo.getAttribute('position').count / 3
+  console.log(`3mf: objects=${objects} triangles=${tris} sourceTriangles=${srcTris} ${tris === srcTris ? 'OK' : 'MISMATCH'}`)
+  if (tris !== srcTris || objects < 2) process.exitCode = 1
+}

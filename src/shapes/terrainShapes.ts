@@ -16,6 +16,7 @@ const hasRoute = (v: ParamValues) => Array.isArray(v.routePoints) && v.routePoin
 
 export const terrainMap: ShapeDefinition = {
   id: 'terrain',
+  zUp: true,
   name: 'Terrain Map',
   description:
     'A 3D-printable topographic relief of a real place, built from real elevation data — pick a location (or one of the presets), or upload a GPX route to trace your exact ride/run as a raised line over the terrain. Inspired by 3D-printed trail/topo map art.',

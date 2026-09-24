@@ -4,7 +4,7 @@ import { AIGeneratePanel } from './components/AIGeneratePanel'
 import { ParamPanel } from './components/ParamPanel'
 import { ShapeGallery } from './components/ShapeGallery'
 import { Viewer3D } from './components/Viewer3D'
-import { downloadStl } from './lib/exportStl'
+import { download3mf, downloadStl } from './lib/exportStl'
 import { getShape } from './shapes/catalog'
 import { useDesignStore } from './store/useDesignStore'
 
@@ -34,11 +34,15 @@ function App() {
     return geo
   }, [rawGeneratedGeometry, aiScaleMm])
 
-  const handleExport = () => {
-    if (!meshRef.current) return
-    const filename = mode === 'ai' ? `ai-generated-${Date.now()}.stl` : `${shape?.id ?? 'model'}-${Date.now()}.stl`
-    downloadStl(meshRef.current, filename)
+  const handleExport = (format: 'stl' | '3mf') => {
+    const geometry = meshRef.current?.geometry
+    if (!geometry) return
+    const base = mode === 'ai' ? `ai-generated-${Date.now()}` : `${shape?.id ?? 'model'}-${Date.now()}`
+    const zUp = mode === 'parametric' && !!shape?.zUp
+    if (format === '3mf') download3mf(geometry, zUp, base)
+    else downloadStl(geometry, zUp, base)
   }
+  const canExport3mf = mode === 'parametric' && !!shape?.multiColor
 
   return (
     <div className="flex h-screen w-screen flex-col bg-slate-950 text-slate-100">
@@ -62,8 +66,17 @@ function App() {
               AI Generate
             </button>
           </div>
+          {canExport3mf && (
+            <button
+              onClick={() => handleExport('3mf')}
+              title="One part per color — open in Bambu Studio, select all parts, Assemble, then assign a filament to each."
+              className="rounded-md border border-emerald-500 px-4 py-2 text-sm font-medium text-emerald-300 hover:bg-emerald-500/10"
+            >
+              Export 3MF (colors)
+            </button>
+          )}
           <button
-            onClick={handleExport}
+            onClick={() => handleExport('stl')}
             disabled={mode === 'ai' && !scaledGeneratedGeometry}
             className="rounded-md bg-emerald-500 px-4 py-2 text-sm font-medium text-emerald-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
           >

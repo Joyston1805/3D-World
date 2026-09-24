@@ -50,6 +50,10 @@ genuinely built up rather than chosen whole:
   [src/shapes/terrainShapes.ts](src/shapes/terrainShapes.ts)) — the same relief-panel
   technique, but the height source is real-world elevation data for a location you pick,
   not an image. See **Terrain maps from real elevation data** below.
+- **Cityscape** and **City Map** ([src/engine/cityGeometry.ts](src/engine/cityGeometry.ts) +
+  [src/shapes/cityShapes.ts](src/shapes/cityShapes.ts)) — a procedural, seeded skyline
+  on a street grid, and a real place built from OpenStreetMap building footprints. Both
+  are multi-color. See **Cities and colors** below.
 
 **Quick-start templates**: the eleven previously separate Revolve "shapes" (Lamp Shade,
 Vase, Planter/Pot, Tumbler/Cup, Twisted Spire, Wave Bowl, Organic Pod, Flower Vase, Gear
@@ -188,6 +192,46 @@ height source is real-world elevation for a location you pick — inspired direc
   it's skipped rather than built against a policy it wouldn't respect) — square panels
   from a manually-entered or preset coordinate, with an optional single route, only. See
   Roadmap.
+
+### Cities and colors
+
+- **Cityscape** — a procedural city: pick a seed (every seed is a different skyline), a
+  square or round base, block count, street width, and height range, with "downtown
+  focus" pushing the tallest towers toward the middle. Components (same "+ Add" pattern
+  as Revolve): **Parks** (empty blocks), **Setback tiers** (wedding-cake towers), and
+  **Spires**. Quick starts: Downtown, Megacity, Small Town, City Island.
+- **City Map** — a real place. Pick a preset (Chicago Loop, Manhattan Midtown, Paris,
+  London, Tokyo Shibuya, San Francisco, Dubai) or any coordinates, then **Fetch
+  Buildings**: every building footprint in the area is pulled from OpenStreetMap through
+  the free, key-less [Overpass API](https://overpass-api.de) ([src/lib/osmBuildings.ts](src/lib/osmBuildings.ts))
+  and extruded to its tagged height (`height`, else `building:levels` x 3.2 m, else
+  12 m). Honest limits: OSM height coverage varies a lot by city (the app shows what
+  percentage of buildings had a real height — Midtown Manhattan was 81%, the Chicago
+  Loop 35%), courtyards in multipolygon buildings are filled in, and the public Overpass
+  servers are volunteer-run and sometimes overloaded, so the fetch retries and falls
+  back across several servers. Keep areas under ~2 km.
+- **Colors** ([src/engine/cityPalette.ts](src/engine/cityPalette.ts)) — up to four
+  building colors plus a base-plate color (matching a 4-slot AMS), applied by building
+  height (equal heights share a color), randomly per building, or as a single color.
+  Quick-start "Colors:" chips set a whole palette (Concrete, Sunset, Neon Night, Ice,
+  Gold Skyline, Confetti, One Color) without touching the layout.
+- **Multi-color export**: each building is one closed, single-color solid
+  ([src/engine/coloredMeshBuilder.ts](src/engine/coloredMeshBuilder.ts)), so **Export 3MF
+  (colors)** ([src/lib/exportStl.ts](src/lib/exportStl.ts)) writes one object per color,
+  tagged with that color. A round-trip check in `npm run verify:geometry` confirms no
+  triangle is lost. What's *not* verified: how a given slicer maps those colors. In Bambu
+  Studio, select all the parts, use **Assemble**, then assign a filament to each part
+  if it doesn't pick the colors up on its own. Plain **Export STL** is still one solid,
+  no color, as before.
+- Buildings are embedded slightly into the base (and tiers into each other) so shells
+  overlap instead of sharing coplanar faces; the slicer unions them. Every individual
+  building is a watertight solid, but in a City Map neighboring buildings that share a
+  wall are separate overlapping solids, not one merged mesh.
+
+**Print orientation**: slicers are Z-up. Shapes built Y-up (vases, blobs, coral, AI
+models) are now rotated onto Z and dropped on the bed at export time, and Z-up shapes
+(panels, terrain, cities) display flat in the viewer the way they print. Previously the
+Y-up shapes exported unrotated.
 
 ### Where these techniques come from
 

@@ -1,6 +1,7 @@
 import { Fragment } from 'react'
 import type { ComponentGroup, Heightmap, ParamDef, ParamValues } from '../engine/types'
 import { getShape, templatesByShapeId } from '../shapes/catalog'
+import { CityMapControl } from './CityMapControl'
 import { ColorBandGuide } from './ColorBandGuide'
 import { GpxUploadControl } from './GpxUploadControl'
 import { ImageUploadControl } from './ImageUploadControl'
@@ -165,6 +166,7 @@ export function ParamPanel() {
 
   const isLithophane = shape.id === 'lithophane-panel'
   const isTerrain = shape.id === 'terrain'
+  const isCityMap = shape.id === 'citymap'
   const templates = templatesByShapeId[shape.id]
 
   const groupedKeys = new Set(shape.componentGroups?.flatMap((g) => g.paramKeys) ?? [])
@@ -240,6 +242,19 @@ export function ParamPanel() {
               }
             />
           </>
+        )}
+
+        {isCityMap && (
+          <CityMapControl
+            lat={Number(values.lat)}
+            lon={Number(values.lon)}
+            spanKm={Number(values.spanKm)}
+            buildingCount={Array.isArray(values.footprints) ? (values.footprints as number[]).length : 0}
+            onLocationChange={(lat, lon, spanKm) =>
+              setParamsForShape(selectedShapeId, { lat, lon, spanKm, footprints: [] })
+            }
+            onFetched={(footprints) => setParamsForShape(selectedShapeId, { footprints })}
+          />
         )}
 
         {coreParams.map((param) => (

@@ -31,11 +31,26 @@ function Model({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedShapeId, values, generatedGeometry, manifoldReady])
 
-  const color = generatedGeometry ? '#d6d3d1' : typeof values.color === 'string' ? values.color : '#cccccc'
+  const hasColors = geometry.hasAttribute('color')
+  const color = hasColors
+    ? '#ffffff'
+    : generatedGeometry
+      ? '#d6d3d1'
+      : typeof values.color === 'string'
+        ? values.color
+        : '#cccccc'
+  // Z-up shapes (panels, cities) are built in print orientation; the viewer is Y-up.
+  const zUp = !generatedGeometry && !!getShape(selectedShapeId)?.zUp
 
   return (
-    <mesh ref={meshRef} geometry={geometry} castShadow receiveShadow>
-      <meshStandardMaterial color={color} roughness={0.55} metalness={0.05} side={THREE.DoubleSide} />
+    <mesh ref={meshRef} geometry={geometry} rotation={[zUp ? -Math.PI / 2 : 0, 0, 0]} castShadow receiveShadow>
+      <meshStandardMaterial
+        color={color}
+        vertexColors={hasColors}
+        roughness={0.55}
+        metalness={0.05}
+        side={THREE.DoubleSide}
+      />
     </mesh>
   )
 }

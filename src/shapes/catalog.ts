@@ -2,6 +2,7 @@ import type { ShapeDefinition, ShapeTemplate } from '../engine/types'
 import { blobShapes } from './blobShapes'
 import { blobTemplates } from './blobTemplates'
 import { branchShapes } from './branchShapes'
+import { cityMapTemplates, cityscapeTemplates, cityShapes } from './cityShapes'
 import { lithophaneShapes } from './lithophaneShapes'
 import { revolveShapes } from './revolveShapes'
 import { revolveTemplates } from './revolveTemplates'
@@ -13,12 +14,15 @@ export const shapeCatalog: ShapeDefinition[] = [
   ...branchShapes,
   ...lithophaneShapes,
   ...terrainShapes,
+  ...cityShapes,
 ]
 
 /** Named starting points ("quick start" presets) per base shape id, if any. */
 export const templatesByShapeId: Record<string, ShapeTemplate[]> = {
   revolve: revolveTemplates,
   blob: blobTemplates,
+  cityscape: cityscapeTemplates,
+  citymap: cityMapTemplates,
 }
 
 export function getShape(id: string): ShapeDefinition | undefined {

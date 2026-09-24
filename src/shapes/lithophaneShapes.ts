@@ -6,6 +6,7 @@ const FLAT_HEIGHTMAP: Heightmap = { data: new Float32Array([0.5, 0.5, 0.5, 0.5])
 
 export const lithophanePanel: ShapeDefinition = {
   id: 'lithophane-panel',
+  zUp: true,
   name: 'Photo Panel',
   description:
     'Upload a photo and it becomes a flat relief panel — thick where the image is dark, thin where it\'s light. Hang it in a window or backlight it and the picture appears in grayscale. Also works as a flat, opaque piece for layered-color printing (see the color band guide below once you upload).',

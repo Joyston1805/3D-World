@@ -89,6 +89,10 @@ export interface ShapeDefinition {
   build: (values: ParamValues) => THREE.BufferGeometry
   /** Toggleable feature layers, for shapes built dynamically (see ComponentGroup). */
   componentGroups?: ComponentGroup[]
+  /** Geometry is built Z-up (print orientation). Otherwise Y-up, and export rotates it to Z-up. */
+  zUp?: boolean
+  /** build() returns a per-vertex `color` attribute, one uniform color per solid (enables 3MF color export). */
+  multiColor?: boolean
 }
 
 export function defaultValuesFor(params: ParamDef[]): ParamValues {
