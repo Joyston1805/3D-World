@@ -319,6 +319,42 @@ conversion step is needed:
 3. `npm run dev` now starts *both* the Vite frontend and this backend together (see
    below) — no separate step needed.
 
+## Phase 2b — 3D Scan (multi-photo or 360° video, no API key, no cloud)
+
+An alternative to AI Generate for turning a real object into a mesh, with the opposite
+tradeoffs: **fully local, free, no account, no API key** — but a much simpler
+reconstruction technique with real, documented limits, not a learned 3D generative model.
+
+- **Technique — a visual hull**: photograph (or film) an object from several angles
+  against a plain background. Each photo becomes a foreground/background silhouette
+  ([src/lib/backgroundRemoval.ts](src/lib/backgroundRemoval.ts): flood-fill inward from
+  the image border through pixels close to the estimated background color — a classic,
+  fully local segmentation, not AI). A voxel grid is then carved by an idealized orbiting
+  camera ([src/engine/visualHull.ts](src/engine/visualHull.ts)): a voxel survives only if
+  it projects inside *every* view's silhouette. The result is meshed with a proper
+  from-scratch marching cubes implementation
+  ([src/lib/marchingCubes.ts](src/lib/marchingCubes.ts)) that welds vertices by shared
+  grid-edge identity (not per-cube), reusing three.js's own (battle-tested) case table —
+  this is what makes the output a genuinely watertight, indexed mesh rather than a
+  seamy approximation, verified the same way as every other shape in this app.
+- **Two ways to shoot it**: upload individual photos into angle-labeled slots (Front,
+  Right, Back, Left, or add more for a tighter carve), or upload a 360° turntable video
+  and pick how many frames to sample — frames are assumed evenly spaced around one full
+  rotation at constant speed, so trim the clip to exactly one clean turn.
+- **What it's honestly not**: this is *not* photogrammetry — there's no structure-from-
+  motion, no real camera calibration. Every view uses the same fixed, idealized camera
+  (you only set its elevation angle), so it assumes a centered subject shot at roughly
+  even angles. And a visual hull fundamentally cannot recover concavities invisible in
+  every silhouette — an eye socket, the inside of a cup, the underside of an overhang —
+  since no camera angle ever sees them missing. It reconstructs the *outer* shape of
+  solid, roughly convex objects (figurines, bottles, busts, mugs' outsides) well; it
+  will not produce fine surface detail or genuinely hollow/concave forms. Compare this
+  honestly against AI Generate above, which uses a real learned 3D model and can infer
+  plausible detail it never directly saw, at the cost of needing Meshy's cloud API.
+- Like AI Generate, output isn't guaranteed print-ready — check it in your slicer's
+  mesh-repair tool — and gets the same "scale to height" step before export, since the
+  reconstruction has no real-world size reference.
+
 ## Running it
 
 ```bash

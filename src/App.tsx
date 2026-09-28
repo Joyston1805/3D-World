@@ -2,13 +2,14 @@ import { useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { AIGeneratePanel } from './components/AIGeneratePanel'
 import { ParamPanel } from './components/ParamPanel'
+import { ScanCapturePanel } from './components/ScanCapturePanel'
 import { ShapeGallery } from './components/ShapeGallery'
 import { Viewer3D } from './components/Viewer3D'
 import { download3mf, downloadStl } from './lib/exportStl'
 import { getShape } from './shapes/catalog'
 import { useDesignStore } from './store/useDesignStore'
 
-type Mode = 'parametric' | 'ai'
+type Mode = 'parametric' | 'ai' | 'scan'
 
 function App() {
   const meshRef = useRef<THREE.Mesh>(null)
@@ -37,7 +38,7 @@ function App() {
   const handleExport = (format: 'stl' | '3mf') => {
     const geometry = meshRef.current?.geometry
     if (!geometry) return
-    const base = mode === 'ai' ? `ai-generated-${Date.now()}` : `${shape?.id ?? 'model'}-${Date.now()}`
+    const base = mode === 'parametric' ? `${shape?.id ?? 'model'}-${Date.now()}` : `${mode}-generated-${Date.now()}`
     const zUp = mode === 'parametric' && !!shape?.zUp
     if (format === '3mf') download3mf(geometry, zUp, base)
     else downloadStl(geometry, zUp, base)
@@ -65,6 +66,12 @@ function App() {
             >
               AI Generate
             </button>
+            <button
+              onClick={() => setMode('scan')}
+              className={`rounded px-3 py-1 ${mode === 'scan' ? 'bg-emerald-500 text-emerald-950' : 'text-slate-300 hover:bg-slate-800'}`}
+            >
+              3D Scan
+            </button>
           </div>
           {canExport3mf && (
             <button
@@ -77,7 +84,7 @@ function App() {
           )}
           <button
             onClick={() => handleExport('stl')}
-            disabled={mode === 'ai' && !scaledGeneratedGeometry}
+            disabled={mode !== 'parametric' && !scaledGeneratedGeometry}
             className="rounded-md bg-emerald-500 px-4 py-2 text-sm font-medium text-emerald-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
           >
             Export STL
@@ -89,13 +96,21 @@ function App() {
 
       <div className="flex min-h-0 flex-1">
         <main className="min-w-0 flex-1">
-          <Viewer3D meshRef={meshRef} generatedGeometry={mode === 'ai' ? scaledGeneratedGeometry : null} />
+          <Viewer3D meshRef={meshRef} generatedGeometry={mode !== 'parametric' ? scaledGeneratedGeometry : null} />
         </main>
         <aside className="w-72 shrink-0 border-l border-slate-800 bg-slate-925">
-          {mode === 'parametric' ? (
-            <ParamPanel />
-          ) : (
+          {mode === 'parametric' && <ParamPanel />}
+          {mode === 'ai' && (
             <AIGeneratePanel
+              onGenerated={setRawGeneratedGeometry}
+              hasResult={!!rawGeneratedGeometry}
+              onClear={() => setRawGeneratedGeometry(null)}
+              scaleMm={aiScaleMm}
+              onScaleChange={setAiScaleMm}
+            />
+          )}
+          {mode === 'scan' && (
+            <ScanCapturePanel
               onGenerated={setRawGeneratedGeometry}
               hasResult={!!rawGeneratedGeometry}
               onClear={() => setRawGeneratedGeometry(null)}
