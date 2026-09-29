@@ -106,11 +106,7 @@ export function extractSilhouette(image: CanvasImageSource, sourceWidth: number,
   }
 
   const data = new Float32Array(width * height)
-  let foregroundCount = 0
-  for (let i = 0; i < width * height; i++) {
-    data[i] = isBg[i] ? 0 : 1
-    if (!isBg[i]) foregroundCount++
-  }
+  for (let i = 0; i < width * height; i++) data[i] = isBg[i] ? 0 : 1
   return { data, width, height }
 }
 
@@ -121,7 +117,7 @@ export function renderMaskPreview(image: CanvasImageSource, sourceWidth: number,
   const imgData = ctx.getImageData(0, 0, width, height)
   const px = imgData.data
   for (let i = 0; i < width * height; i++) {
-    if (mask.data[i] === 0) {
+    if (mask.data[i] < 0.5) {
       px[i * 4] = Math.round(px[i * 4] * 0.5 + 255 * 0.5)
       px[i * 4 + 1] = Math.round(px[i * 4 + 1] * 0.5)
       px[i * 4 + 2] = Math.round(px[i * 4 + 2] * 0.5)

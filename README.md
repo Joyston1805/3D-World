@@ -73,7 +73,11 @@ and merged multi-mesh structures (Coral Branch).
   Three Fiber canvas with auto-framing camera, orbit controls, and real-time geometry
   rebuilds as you drag sliders. 1 scene unit = 1mm, matching slicer conventions.
 - **STL export** ([src/lib/exportStl.ts](src/lib/exportStl.ts)): binary STL via
-  `three-stdlib`'s `STLExporter`, downloaded client-side — no server involved.
+  `three-stdlib`'s `STLExporter`, downloaded client-side — no server involved. A fresh
+  `STLExporter` is created per export: the class accumulates triangle counts and mesh
+  references on itself across calls, so a shared instance corrupted the output (and
+  eventually crashed) from the second export of a session onward — found and fixed
+  during a pre-deploy pass.
 
 All of the above runs 100% locally in the browser — no AI, no API keys, no cost. (The
 separate **AI Generate** tab, covered in Phase 2 below, is opt-in and does use a cloud
@@ -354,6 +358,14 @@ reconstruction technique with real, documented limits, not a learned 3D generati
 - Like AI Generate, output isn't guaranteed print-ready — check it in your slicer's
   mesh-repair tool — and gets the same "scale to height" step before export, since the
   reconstruction has no real-world size reference.
+- **Object aspect** and **Smoothing** controls: aspect sets the carve volume's
+  height-to-width ratio (taller for a bottle, lower for something squat); smoothing runs
+  a Laplacian pass ([src/lib/smoothMesh.ts](src/lib/smoothMesh.ts)) afterward to round off
+  voxel-grid faceting — it only moves vertex positions, never changes the mesh's topology,
+  so it can't turn a watertight carve into a leaky one. (An earlier attempt to soften the
+  silhouette masks themselves, before carving, was reverted after testing showed it could
+  trigger a classic marching-cubes ambiguous-face case and produce a handful of
+  non-manifold edges — smoothing the *result* instead avoids that risk entirely.)
 
 ## Running it
 

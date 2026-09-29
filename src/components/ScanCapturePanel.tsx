@@ -3,6 +3,7 @@ import * as THREE from 'three'
 import { extractSilhouette, renderMaskPreview } from '../lib/backgroundRemoval'
 import { extractVideoFrames } from '../lib/videoFrames'
 import { carveVisualHull } from '../engine/visualHull'
+import { smoothGeometry } from '../lib/smoothMesh'
 
 interface ViewSlot {
   id: number
@@ -44,6 +45,8 @@ export function ScanCapturePanel({ onGenerated, hasResult, onClear, scaleMm, onS
   const [tolerance, setTolerance] = useState(45)
   const [elevationDeg, setElevationDeg] = useState(10)
   const [resolution, setResolution] = useState(56)
+  const [aspect, setAspect] = useState(1.3)
+  const [smoothing, setSmoothing] = useState(2)
   const [frameCount, setFrameCount] = useState(12)
   const [reverseDirection, setReverseDirection] = useState(false)
   const [status, setStatus] = useState<'idle' | 'working' | 'error'>('idle')
@@ -104,11 +107,12 @@ export function ScanCapturePanel({ onGenerated, hasResult, onClear, scaleMm, onS
           const mask = extractSilhouette(slot.source, slot.width, slot.height, tolerance)
           return { mask: mask.data, width: mask.width, height: mask.height, azimuthDeg: slot.azimuthDeg }
         })
-        const geometry = carveVisualHull({ views, elevationDeg, resolution, aspect: 1.3 })
+        const geometry = carveVisualHull({ views, elevationDeg, resolution, aspect })
         const triCount = (geometry.getIndex()?.count ?? 0) / 3
         if (triCount === 0) {
           throw new Error('Nothing was carved — check that the background tolerance is separating the object from its background in the previews above.')
         }
+        smoothGeometry(geometry, smoothing)
         setResultInfo(`Reconstructed ${triCount.toLocaleString()} triangles from ${slots.length} views.`)
         onGenerated(geometry)
         setStatus('idle')
@@ -302,6 +306,40 @@ export function ScanCapturePanel({ onGenerated, hasResult, onClear, scaleMm, onS
           <option value={56}>Standard</option>
           <option value={80}>Fine (slower)</option>
         </select>
+      </label>
+
+      <label className="flex flex-col gap-1 text-xs text-slate-300">
+        <span className="flex justify-between">
+          <span>Object aspect (height ÷ width)</span>
+          <span className="text-slate-500">{aspect.toFixed(1)}</span>
+        </span>
+        <input
+          type="range"
+          min={0.5}
+          max={3}
+          step={0.1}
+          value={aspect}
+          onChange={(e) => setAspect(Number(e.target.value))}
+          className="accent-emerald-500"
+        />
+        <span className="text-[11px] text-slate-500">Taller for a bottle/figurine, lower for something squat or wide.</span>
+      </label>
+
+      <label className="flex flex-col gap-1 text-xs text-slate-300">
+        <span className="flex justify-between">
+          <span>Smoothing</span>
+          <span className="text-slate-500">{smoothing}</span>
+        </span>
+        <input
+          type="range"
+          min={0}
+          max={5}
+          step={1}
+          value={smoothing}
+          onChange={(e) => setSmoothing(Number(e.target.value))}
+          className="accent-emerald-500"
+        />
+        <span className="text-[11px] text-slate-500">Rounds off the voxel-grid faceting; too much washes out real detail.</span>
       </label>
 
       <button

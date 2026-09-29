@@ -2,8 +2,6 @@ import * as THREE from 'three'
 import { STLExporter } from 'three-stdlib'
 import { zipSync, strToU8 } from 'fflate'
 
-const exporter = new STLExporter()
-
 /**
  * Slicers (Bambu Studio included) are Z-up. Shapes built Y-up (vases, blobs, coral, AI
  * models) are rotated onto Z here at export time; Z-up shapes (panels, city) pass
@@ -30,7 +28,10 @@ function save(data: BlobPart, filename: string, type: string) {
 }
 
 export function downloadStl(geometry: THREE.BufferGeometry, zUp: boolean, filename: string) {
-  const result = exporter.parse(new THREE.Mesh(orientForPrint(geometry, zUp)), { binary: true }) as unknown as DataView
+  // A fresh exporter every call: STLExporter accumulates triangle counts and mesh
+  // references on `this` across calls, so a shared/reused instance corrupts the buffer
+  // size on the second and later export of a session.
+  const result = new STLExporter().parse(new THREE.Mesh(orientForPrint(geometry, zUp)), { binary: true }) as unknown as DataView
   save(result.buffer as ArrayBuffer, filename.endsWith('.stl') ? filename : `${filename}.stl`, 'application/octet-stream')
 }
 
