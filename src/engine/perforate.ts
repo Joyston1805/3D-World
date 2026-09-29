@@ -119,20 +119,30 @@ export function applyPerforation(
 
   const shellMesh = threeGeometryToManifoldMesh(wasm, shellGeometry)
   const cutterMesh = threeGeometryToManifoldMesh(wasm, mergedCutters)
-  const shellManifold = new wasm.Manifold(shellMesh)
-  const cutterManifold = new wasm.Manifold(cutterMesh)
-  const resultManifold = shellManifold.subtract(cutterManifold)
-  const resultMesh = resultManifold.getMesh()
 
-  const resultGeometry = new THREE.BufferGeometry()
-  resultGeometry.setAttribute('position', new THREE.Float32BufferAttribute(resultMesh.vertProperties, resultMesh.numProp))
-  resultGeometry.setIndex(new THREE.BufferAttribute(resultMesh.triVerts, 1))
-  resultGeometry.computeVertexNormals()
-  resultGeometry.computeBoundingBox()
+  // manifold-3d's Manifold objects hold WASM heap memory that's only freed by an
+  // explicit .delete() — never by JS garbage collection. The Manifold constructor is
+  // documented to throw for non-manifold input, and this runs on every param change
+  // while dragging a slider, so any straight-line (no try/finally) version leaks WASM
+  // heap on the very first bad intermediate mesh, compounding fast under live editing.
+  let shellManifold: InstanceType<typeof wasm.Manifold> | undefined
+  let cutterManifold: InstanceType<typeof wasm.Manifold> | undefined
+  let resultManifold: InstanceType<typeof wasm.Manifold> | undefined
+  try {
+    shellManifold = new wasm.Manifold(shellMesh)
+    cutterManifold = new wasm.Manifold(cutterMesh)
+    resultManifold = shellManifold.subtract(cutterManifold)
+    const resultMesh = resultManifold.getMesh()
 
-  shellManifold.delete()
-  cutterManifold.delete()
-  resultManifold.delete()
-
-  return resultGeometry
+    const resultGeometry = new THREE.BufferGeometry()
+    resultGeometry.setAttribute('position', new THREE.Float32BufferAttribute(resultMesh.vertProperties, resultMesh.numProp))
+    resultGeometry.setIndex(new THREE.BufferAttribute(resultMesh.triVerts, 1))
+    resultGeometry.computeVertexNormals()
+    resultGeometry.computeBoundingBox()
+    return resultGeometry
+  } finally {
+    shellManifold?.delete()
+    cutterManifold?.delete()
+    resultManifold?.delete()
+  }
 }
