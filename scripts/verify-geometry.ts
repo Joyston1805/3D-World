@@ -14,15 +14,22 @@ await ensureManifoldLoading()
 function posKey(x: number, y: number, z: number): string {
   // Position-based (not index-based) so this also validates non-indexed
   // (flat-shaded / merged multi-mesh) geometry, where coincident vertices
-  // don't share an index. 1e-4mm is well below print resolution.
+  // don't share an index.
+  //
+  // Precision: 1e-6 is well below print resolution (a real defect's gap is never
+  // that small) but far tighter than 1e-4, which turned out to be too coarse for
+  // marching-cubes output — two genuinely *different* interpolated vertices from
+  // adjacent grid edges can land as close as ~6e-5 apart, which 1e-4 rounding
+  // collided into one key, producing phantom non-manifold-edge counts for a mesh
+  // that was actually watertight (confirmed separately via an index-based check).
   // Round to the key's own precision *then* normalize -0 to 0 — toFixed
-  // keeps the sign on negative-zero-ish values (e.g. -0.00001 -> "-0.0000"),
+  // keeps the sign on negative-zero-ish values (e.g. -0.0000001 -> "-0.000000"),
   // which would otherwise split one real vertex into two different keys.
   const round = (v: number) => {
-    const r = Math.round(v * 10000) / 10000
+    const r = Math.round(v * 1000000) / 1000000
     return r === 0 ? 0 : r
   }
-  return `${round(x).toFixed(4)}_${round(y).toFixed(4)}_${round(z).toFixed(4)}`
+  return `${round(x).toFixed(6)}_${round(y).toFixed(6)}_${round(z).toFixed(6)}`
 }
 
 function verify(label: string, geometry: THREE.BufferGeometry) {
@@ -127,4 +134,72 @@ for (const shape of shapeCatalog) {
   const srcTris = geo.getAttribute('position').count / 3
   console.log(`3mf: objects=${objects} triangles=${tris} sourceTriangles=${srcTris} ${tris === srcTris ? 'OK' : 'MISMATCH'}`)
   if (tris !== srcTris || objects < 2) process.exitCode = 1
+}
+
+// ---- 3D Scan (visual hull + marching cubes + smoothing), with synthetic silhouettes
+// (an analytically-rendered sphere) so this has the same permanent regression coverage
+// as every other shape family — nothing exercised this path outside ad-hoc test scripts
+// before. Covers: multiple view counts, a non-cubic (tall) aspect, and the post-carve
+// Laplacian smoothing pass all in one, since none of them may change mesh topology. ----
+{
+  const { carveVisualHull } = await import('../src/engine/visualHull')
+  const { smoothGeometry } = await import('../src/lib/smoothMesh')
+  const { boxBlur } = await import('../src/lib/backgroundRemoval')
+
+  function sphereSilhouette(width: number, height: number, azimuthDeg: number, elevationDeg: number, radius: number): Float32Array {
+    const mask = new Float32Array(width * height)
+    const camera = new THREE.PerspectiveCamera(35, width / height, 0.01, 20)
+    const az = (azimuthDeg * Math.PI) / 180
+    const el = (elevationDeg * Math.PI) / 180
+    camera.position.set(3 * Math.cos(el) * Math.sin(az), 3 * Math.sin(el), 3 * Math.cos(el) * Math.cos(az))
+    camera.lookAt(0, 0, 0)
+    camera.updateMatrixWorld(true)
+    camera.updateProjectionMatrix()
+    const N = 4000
+    for (let i = 0; i < N; i++) {
+      const theta = Math.acos(1 - (2 * (i + 0.5)) / N)
+      const phi = Math.PI * (1 + Math.sqrt(5)) * i
+      const p = new THREE.Vector3(radius * Math.sin(theta) * Math.cos(phi), radius * Math.cos(theta) * 0.8, radius * Math.sin(theta) * Math.sin(phi))
+      const proj = p.clone().project(camera)
+      if (proj.z < -1 || proj.z > 1) continue
+      const u = (proj.x + 1) / 2
+      const v = (1 - proj.y) / 2
+      const px = Math.round(u * (width - 1))
+      const py = Math.round(v * (height - 1))
+      if (px < 0 || px >= width || py < 0 || py >= height) continue
+      for (let dy = -3; dy <= 3; dy++) {
+        for (let dx = -3; dx <= 3; dx++) {
+          const x = px + dx
+          const y = py + dy
+          if (x >= 0 && x < width && y >= 0 && y < height) mask[y * width + x] = 1
+        }
+      }
+    }
+    return mask
+  }
+
+  for (const numViews of [4, 8]) {
+    const views = Array.from({ length: numViews }, (_, i) => {
+      const az = (i / numViews) * 360
+      return { mask: sphereSilhouette(96, 96, az, 10, 0.6), width: 96, height: 96, azimuthDeg: az }
+    })
+    const geo = carveVisualHull({ views, elevationDeg: 10, resolution: 40, aspect: 1.3 })
+    verify(`scan-hull-${numViews}views`, geo)
+    smoothGeometry(geo, 2)
+    verify(`scan-hull-${numViews}views-smoothed`, geo)
+  }
+
+  // The real app blurs each silhouette (src/lib/backgroundRemoval.ts) before carving,
+  // for smoother surfaces — verified separately since it's a materially different field
+  // (continuous, not binary) that could in principle hit different marching-cubes cases.
+  for (const numViews of [4, 8]) {
+    const views = Array.from({ length: numViews }, (_, i) => {
+      const az = (i / numViews) * 360
+      const mask = sphereSilhouette(96, 96, az, 10, 0.6)
+      boxBlur(mask, 96, 96, 2, 2)
+      return { mask, width: 96, height: 96, azimuthDeg: az }
+    })
+    const geo = carveVisualHull({ views, elevationDeg: 10, resolution: 40, aspect: 1.3 })
+    verify(`scan-hull-blurred-${numViews}views`, geo)
+  }
 }

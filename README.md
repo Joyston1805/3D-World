@@ -358,14 +358,26 @@ reconstruction technique with real, documented limits, not a learned 3D generati
 - Like AI Generate, output isn't guaranteed print-ready — check it in your slicer's
   mesh-repair tool — and gets the same "scale to height" step before export, since the
   reconstruction has no real-world size reference.
-- **Object aspect** and **Smoothing** controls: aspect sets the carve volume's
-  height-to-width ratio (taller for a bottle, lower for something squat); smoothing runs
-  a Laplacian pass ([src/lib/smoothMesh.ts](src/lib/smoothMesh.ts)) afterward to round off
-  voxel-grid faceting — it only moves vertex positions, never changes the mesh's topology,
-  so it can't turn a watertight carve into a leaky one. (An earlier attempt to soften the
-  silhouette masks themselves, before carving, was reverted after testing showed it could
-  trigger a classic marching-cubes ambiguous-face case and produce a handful of
-  non-manifold edges — smoothing the *result* instead avoids that risk entirely.)
+- **Two smoothing passes work together**: each silhouette mask is box-blurred before
+  carving (softens the hard 0/1 edge into a gradient a few pixels wide, so the field
+  marching cubes reads varies smoothly across several voxels instead of snapping at a
+  single pixel), and a Laplacian pass ([src/lib/smoothMesh.ts](src/lib/smoothMesh.ts),
+  the **Smoothing** control) then rounds off the remaining voxel-grid faceting on the
+  carved mesh itself. The Laplacian pass only moves vertex positions and never touches
+  the mesh's topology, so it can't turn a watertight carve into a leaky one by
+  construction. The **Object aspect** control sets the carve volume's height-to-width
+  ratio (taller for a bottle, lower for something squat).
+- Both the mask blur and the Laplacian pass are covered by permanent regression tests in
+  `npm run verify:geometry` (`scan-hull-*` and `scan-hull-blurred-*`) — added after an
+  early test run *appeared* to show the blurred version was non-manifold, which briefly
+  led to reverting it. That turned out to be a false positive in the checker itself, not
+  the geometry: `verify-geometry.ts`'s own edge-matching rounded vertex positions to only
+  4 decimal places, coarse enough that two genuinely different marching-cubes vertices
+  (as close as ~6e-5 apart, common in finely interpolated isosurface output) could
+  collide onto the same key and produce phantom non-manifold-edge counts. Confirmed with
+  an index-buffer-based check instead of position-string matching, then fixed by
+  tightening the checker to 6 decimal places — verified against the *entire* shape
+  catalog afterward to confirm nothing else was relying on the looser tolerance.
 
 ## Running it
 

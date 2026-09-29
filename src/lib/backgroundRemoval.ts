@@ -21,6 +21,51 @@ function colorDistance(r1: number, g1: number, b1: number, r2: number, g2: numbe
   return Math.sqrt((r1 - r2) ** 2 + (g1 - g2) ** 2 + (b1 - b2) ** 2)
 }
 
+/**
+ * Separable box blur, in place. Softens the mask's hard 0/1 edge into a gradient a few
+ * pixels wide, so the visual hull's carved field varies smoothly across several voxels
+ * instead of snapping at a single pixel boundary — this is what keeps the marching-cubes
+ * output from looking like a blocky voxel stack. (An earlier attempt at this was reverted
+ * after an ad-hoc test appeared to show it introduced non-manifold edges; that test's
+ * check turned out to be a false positive — see scripts/verify-geometry.ts's posKey
+ * comment — and a permanent regression test now covers this exact blurred-mask case.)
+ */
+export function boxBlur(data: Float32Array, width: number, height: number, radius: number, passes: number) {
+  let src = data
+  for (let p = 0; p < passes; p++) {
+    const horizontal = new Float32Array(src.length)
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        let sum = 0
+        let count = 0
+        for (let dx = -radius; dx <= radius; dx++) {
+          const xx = x + dx
+          if (xx < 0 || xx >= width) continue
+          sum += src[y * width + xx]
+          count++
+        }
+        horizontal[y * width + x] = sum / count
+      }
+    }
+    const both = new Float32Array(src.length)
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        let sum = 0
+        let count = 0
+        for (let dy = -radius; dy <= radius; dy++) {
+          const yy = y + dy
+          if (yy < 0 || yy >= height) continue
+          sum += horizontal[yy * width + x]
+          count++
+        }
+        both[y * width + x] = sum / count
+      }
+    }
+    src = both
+  }
+  data.set(src)
+}
+
 function drawScaled(image: CanvasImageSource, sourceWidth: number, sourceHeight: number): { canvas: HTMLCanvasElement; width: number; height: number } {
   const scale = WORK_SIZE / Math.max(sourceWidth, sourceHeight)
   const width = Math.max(1, Math.round(sourceWidth * scale))
@@ -107,6 +152,7 @@ export function extractSilhouette(image: CanvasImageSource, sourceWidth: number,
 
   const data = new Float32Array(width * height)
   for (let i = 0; i < width * height; i++) data[i] = isBg[i] ? 0 : 1
+  boxBlur(data, width, height, 2, 2)
   return { data, width, height }
 }
 
