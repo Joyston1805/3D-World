@@ -345,6 +345,16 @@ reconstruction technique with real, documented limits, not a learned 3D generati
   Right, Back, Left, or add more for a tighter carve), or upload a 360° turntable video
   and pick how many frames to sample — frames are assumed evenly spaced around one full
   rotation at constant speed, so trim the clip to exactly one clean turn.
+- **Video files are capped at 300MB** ([src/lib/videoFrames.ts](src/lib/videoFrames.ts)),
+  with loading and per-frame seeking both timing out (20s / 15s) rather than hanging
+  indefinitely. Found the hard way: a 7-second phone clip exported as Apple ProRes 422 HQ
+  at 4K was 598MB — browsers can't decode ProRes at all (only H.264/HEVC/VP9/AV1), so
+  without this check the app just hung trying to load an undecodable file, indistinguishable
+  from a crash. Captured frames are also downscaled to a 640px max dimension regardless of
+  source resolution — the silhouette pipeline only ever works at ~220px internally, so
+  capturing at full 4K wastes memory for zero benefit (a single 4K frame is ~33MB decoded;
+  a few dozen of those is its own way to make a browser tab struggle even for videos a
+  browser *can* decode). Use a standard H.264/HEVC export, not an editing/intermediate codec.
 - **What it's honestly not**: this is *not* photogrammetry — there's no structure-from-
   motion, no real camera calibration. Every view uses the same fixed, idealized camera
   (you only set its elevation angle), so it assumes a centered subject shot at roughly
