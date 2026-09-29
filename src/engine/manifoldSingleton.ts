@@ -12,16 +12,29 @@ import type { ManifoldToplevel } from 'manifold-3d'
  * picks it up automatically.
  */
 
-let modulePromise: Promise<ManifoldToplevel> | null = null
+let modulePromise: Promise<ManifoldToplevel | void> | null = null
 let moduleInstance: ManifoldToplevel | null = null
 
-export function ensureManifoldLoading(): Promise<ManifoldToplevel> {
+export function ensureManifoldLoading(): Promise<ManifoldToplevel | void> {
   if (!modulePromise) {
-    modulePromise = Module().then((wasm) => {
-      wasm.setup()
-      moduleInstance = wasm
-      return wasm
-    })
+    modulePromise = Module()
+      .then((wasm) => {
+        wasm.setup()
+        moduleInstance = wasm
+        return wasm
+      })
+      .catch((err) => {
+        // Without this catch, a load failure (flaky network, a restrictive CSP blocking
+        // wasm-unsafe-eval, etc.) would leave this rejection uncaught all the way up —
+        // an unhandled promise rejection in the console with no clue why perforation
+        // silently never works. Graceful degradation (skip perforation) still happens
+        // via getManifoldModule() returning null forever; this just makes the failure
+        // visible and diagnosable instead of a silent, permanent no-op.
+        console.error(
+          '[manifold-3d] Failed to load the perforation engine — perforated shapes will render without cut holes. Reloading the page will retry.',
+          err,
+        )
+      })
   }
   return modulePromise
 }
@@ -37,7 +50,10 @@ export function useManifoldReady(): boolean {
     if (ready) return
     let cancelled = false
     ensureManifoldLoading().then(() => {
-      if (!cancelled) setReady(true)
+      // Checks the actual instance, not just promise settlement — a caught load
+      // failure above resolves (doesn't reject) but never sets moduleInstance, and
+      // "ready" should mean "safe to expect getManifoldModule() to return non-null."
+      if (!cancelled && moduleInstance) setReady(true)
     })
     return () => {
       cancelled = true
