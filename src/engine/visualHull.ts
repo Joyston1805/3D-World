@@ -87,6 +87,11 @@ export function carveVisualHull(p: VisualHullParams): THREE.BufferGeometry {
   const cameras = p.views.map((view) => ({ view, camera: makeCamera(view, p.elevationDeg) }))
   const field = new Float32Array(nx * ny * nz)
   const point = new THREE.Vector3()
+  // Reused per view-projection instead of point.clone(): at "Fine" resolution this loop
+  // runs tens of millions of times (voxels x views), and a fresh Vector3 per iteration
+  // was real, measurable GC pressure for no benefit — project() only needs a scratch
+  // buffer, never the original world-space point back.
+  const proj = new THREE.Vector3()
 
   for (let iz = 0; iz < nz; iz++) {
     const wz = -HALF_EXTENT + (iz / (nz - 1)) * 2 * HALF_EXTENT
@@ -97,7 +102,7 @@ export function carveVisualHull(p: VisualHullParams): THREE.BufferGeometry {
         point.set(wx, wy, wz)
         let score = 1
         for (const { view, camera } of cameras) {
-          const proj = point.clone().project(camera)
+          proj.copy(point).project(camera)
           if (proj.z < -1 || proj.z > 1) {
             score = 0
             break
