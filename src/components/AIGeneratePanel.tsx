@@ -29,9 +29,19 @@ export function AIGeneratePanel({ onGenerated, hasResult, onClear, scaleMm, onSc
   const [elapsed, setElapsed] = useState(0)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
+  // Unmount-only: kept in its own effect with no dependencies. Bundled with previewUrl's
+  // cleanup below, this cleared the elapsed-time interval on every *photo change* too —
+  // so starting a text generation, then switching to "From photo" and uploading an image
+  // while it was still running, would silently freeze the "Generating... Xs" counter
+  // (generation itself was unaffected, since nothing else depends on the interval).
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current)
+    }
+  }, [])
+
+  useEffect(() => {
+    return () => {
       if (previewUrl) URL.revokeObjectURL(previewUrl)
     }
   }, [previewUrl])
