@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { extractSilhouette, renderMaskPreview } from '../lib/backgroundRemoval'
 import { extractVideoFrames } from '../lib/videoFrames'
@@ -53,6 +53,21 @@ export function ScanCapturePanel({ onGenerated, hasResult, onClear, scaleMm, onS
   const [error, setError] = useState<string | null>(null)
   const [resultInfo, setResultInfo] = useState<string | null>(null)
 
+  // Photo slots hold a blob URL (URL.createObjectURL) per image; each call site below
+  // revokes a slot's URL as soon as it's discarded, and this is the unmount safety net
+  // for whatever's left (e.g. switching away from the Scan tab mid-session). Revoking a
+  // data: URL (what video-frame slots use for previewUrl) is a silent no-op, so this is
+  // safe to call unconditionally without checking which kind a slot has.
+  const slotsRef = useRef<ViewSlot[]>([])
+  useEffect(() => {
+    slotsRef.current = slots
+  }, [slots])
+  useEffect(() => {
+    return () => {
+      for (const s of slotsRef.current) URL.revokeObjectURL(s.previewUrl)
+    }
+  }, [])
+
   const previews = useMemo(
     () =>
       slots.map((slot) => ({
@@ -67,15 +82,28 @@ export function ScanCapturePanel({ onGenerated, hasResult, onClear, scaleMm, onS
     setSlots((prev) => [...prev, { id: nextId++, azimuthDeg, source: img, width: img.naturalWidth, height: img.naturalHeight, previewUrl: img.src }])
   }
 
-  const removeSlot = (id: number) => setSlots((prev) => prev.filter((s) => s.id !== id))
+  const removeSlot = (id: number) => {
+    // The revoke happens here, outside the updater, because setState updater functions
+    // run twice under StrictMode in development — a side effect inside one either double-
+    // fires (harmless here, since re-revoking is a no-op, but still the wrong pattern) or
+    // reads stale state on the discarded first pass.
+    const slot = slots.find((s) => s.id === id)
+    if (slot) URL.revokeObjectURL(slot.previewUrl)
+    setSlots((prev) => prev.filter((s) => s.id !== id))
+  }
   const setAzimuth = (id: number, azimuthDeg: number) =>
     setSlots((prev) => prev.map((s) => (s.id === id ? { ...s, azimuthDeg } : s)))
+  const clearSlots = () => {
+    for (const s of slots) URL.revokeObjectURL(s.previewUrl)
+    setSlots([])
+  }
 
   const handleExtractVideo = async (file: File) => {
     setStatus('working')
     setError(null)
     try {
       const frames = await extractVideoFrames(file, frameCount)
+      for (const s of slots) URL.revokeObjectURL(s.previewUrl)
       const next: ViewSlot[] = frames.map((canvas, i) => {
         const raw = (i / frameCount) * 360
         return {
@@ -226,7 +254,7 @@ export function ScanCapturePanel({ onGenerated, hasResult, onClear, scaleMm, onS
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
             <p className="text-xs font-medium text-slate-300">{slots.length} views</p>
-            <button onClick={() => setSlots([])} className="text-[11px] text-slate-500 hover:text-slate-300">
+            <button onClick={clearSlots} className="text-[11px] text-slate-500 hover:text-slate-300">
               Clear all
             </button>
           </div>
