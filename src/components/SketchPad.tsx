@@ -138,6 +138,11 @@ export function SketchPad({ value, onChange }: SketchPadProps) {
         ref={canvasRef}
         width={CANVAS_W}
         height={CANVAS_H}
+        // touch-action: none, not e.preventDefault() in the touch handlers below — React
+        // attaches touchstart/touchmove listeners as passive by default, which makes
+        // preventDefault() there a silent no-op (with a console warning); only the CSS
+        // property reliably stops the page from scrolling while drawing on a touchscreen.
+        style={{ touchAction: 'none' }}
         className="cursor-crosshair self-center rounded border border-slate-700"
         onMouseDown={(e) => {
           drawingRef.current = true
@@ -152,6 +157,23 @@ export function SketchPad({ value, onChange }: SketchPadProps) {
           drawingRef.current = false
         }}
         onMouseLeave={() => {
+          drawingRef.current = false
+        }}
+        onTouchStart={(e) => {
+          drawingRef.current = true
+          lastRowRef.current = null
+          const t = e.touches[0]
+          if (t) paintAt(t.clientX, t.clientY, true)
+        }}
+        onTouchMove={(e) => {
+          if (!drawingRef.current) return
+          const t = e.touches[0]
+          if (t) paintAt(t.clientX, t.clientY, false)
+        }}
+        onTouchEnd={() => {
+          drawingRef.current = false
+        }}
+        onTouchCancel={() => {
           drawingRef.current = false
         }}
       />
